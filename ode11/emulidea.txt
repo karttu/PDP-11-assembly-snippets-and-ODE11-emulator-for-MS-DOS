@@ -1,0 +1,169 @@
+
+Sivutus
+
+  Emulaattoriosaan pit{isi v{{nt{{ my|s sivutus (pageing),
+Core War-sovellutuksia ajatellen. Sivutus toimisi siten ett{
+osoitteen (effective address) yl{p{{st{ otettaisiin n bitti{
+ja indeksoitaisiin pagetableen josta kaivettaisiin segmentti
+DS:{{n. Offsettina k{ytett{isiin itse osoitetta (siit{ EI siis
+maskattaisi pois n:{{ ylint{ bitti{).
+Pienin mahdollinen sivunkoko olisi vissiin 16 byte{, koska se
+on segmentin alignauskoko inteliss{. Eli silloin sivuja olisi
+4096 kappaletta, ja sivutaulukko veisi tilaa 8192 tavua.
+(indeksoitaisiin 12:lla ylimm{ll{ bitill{). Suurin sivunkoko
+olisi taas 64 K, siis ei sivutusta ollenkaan, ei shiftausta.
+(Eli niinkuin homma nykyisin toimii). K{yt{nn|ss{ t{m{ on sama
+kuin jos kaikki sivutaulukon segmentit olisivat samoja.
+Jos sivut olisivat 4 kilon (4096 bytes) kokoisia, niin ne
+menisiv{t n{in:
+
+Muistialue         Sivun numero (indeksi sivutaulukkoon)
+
+000000 - 007777     0  "Vector page"
+010000 - 017777	    1
+020000 - 027777	    2
+030000 - 037777     3
+040000 - 047777     4
+050000 - 057777     5
+060000 - 067777     6
+070000 - 077777     7
+100000 - 107777     8
+110000 - 117777     9
+120000 - 127777    10
+130000 - 137777    11
+140000 - 147777    12
+150000 - 157777    13
+160000 - 167777    14
+170000 - 177777    15  I/O-page (registers R0-R7, I/O registers, PSR)
+ 
+Eli sivuja olisi kuusitoista, ja kaksi ensimm{ist{ oktaalidigitti{ kertoisivat
+sivun numeron.
+ 
+Core War versio voisi olla sellainen, ett{ 0-sivulla ei olisi mit{{n
+erikoismerkityst{, eli vectoreita ei k{ytett{isi lainkaan, vaan kaikenlaisista
+ertzuista palattaisiin suoraan OD:hen. Ja stacki pidett{isiin I/O-sivulla.
+Viisitoista ekaa sivua olisi jokainen assignoitu samaan alueeseen
+videomuistissa, ja kuudestoista eli I/O-page olisi assignoitu omaan
+erikoisalueeseensa. Eli t{h{n tyyliin:
+
+Sivu    Segmentti
+00      B800
+01	B700
+02	B600
+03	B500
+04	B400
+05	B300
+06	B200
+07	B100
+10	B000
+11	AF00
+12	AE00
+13	AD00
+14	AC00
+15	AB00
+16	AA00
+17	I/O-segmentti
+ 
+Ja jokaisella Core-War prosessilla olisi oma I/O-segmenttinsa, miss{
+rekut, st{kki ja I/O pysyisiv{t seivattuina. (Eli kun molemmat prosessit
+vaikkapa ulostaisivat PRDATA:an (177566) niin teksti voisi tulla vaikka
+eri ikkunoihin).
+Ja prosessiqueue olisi vain pointteri sirkulaariseen prosessivektoriin,
+mik{ sis{lt{isi kunkin prosessin I/O-pageen assignoidun segmentin.
+(Ent{s samalla puolella olevat, yhden prosessin splittaamat aliprosessit ?
+--> Eri segmentit vissiin).
+
+(Huom ! 16 prosessia veisi jo 16 * 4096 = 65536 kiloa, ja 64 prosessia
+veisi 4 * 64 kiloa = 256 kiloa). (Voisi k{ytt{{ pienempi{ sivuja, ja
+vaikkapa viimeisin 256 byte{ muistista (177400 - 177777) olisi speciaali
+I/O-page -> mahtuisi 256 prosessia 64 kiloon).
+
+
+Valitsemalla sivun kooksi 16 tavua (pienin koko) ja jakamalla 2048 byten
+alue 128:aan sellaiseen sivuun, niin ett{ n{m{ kaikki 2048:n byten p{tk{t
+(paitsi tietenkin I/O-sivu) olisi assignoitu keskelle n{ytt|{ niin
+ett{ keskell{ n{ytt|{ olisi 64:n characterin ja 16 rivin kokoinen
+"ikkuna coreen". (eli 64*16*2 = 2048 byte{). Ymp{rille vaikkapa
+seuraavanlaiset muuttumattomat raamit. Reunoilla voisi olla jotain
+nuolia jotka osoittaisivat PC:n paikan. (Kahden nuolen risteyskohta).
+Raamien yl{puolelle j{isi 3 rivi{ tyhj{{, ja alapuolelle 4 rivi{.
+(3+1+16+1+4 = 25 rivi{). Vissiin 32 bytenkin sivut toimisivat.
+Eip{s kun 64*2 = 128 byten sivut toimivat, joita olisi 512 kappaletta.
+Eli 16 sivua per ikkuna, koska 16 rivi{kin.
+
+HOME  <- B800
+B80A
+B814    1234567890123456789012345678901234567890123456789012345678901234
+B81E 67ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
+000000 บB829                                                            บ  1
+000200 บB833                                                            บ  2
+000400 บ                                                                บ  3
+000600 บ                                                                บ  4
+001000 บ                                                                บ  5
+001200 บ                                                                บ  6
+001400 บ                                                                บ  7
+001600 บ                                                                บ  8
+002000 บ                                                                บ  9
+002200 บ                                                                บ 10
+002400 บ                                                                บ 11
+002600 บ                                                                บ 12
+003000 บ                                                                บ 13
+003200 บ                                                                บ 14
+003400 บ                                                                บ 15
+003600 บB8BF                                                            บ 16
+       ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
+
+Eli ikkunan segmentit olisivat B829, B833, jne. aina kymmenen enemm{n kuin
+edellinen, ja kuustoista kappaletta. Vika olisi B8BF.
+Seisem{stoista olisi taas B829 jne. ja sama toistuisi, ilmeisesti viimeiseen
+128 byten sivuun saakka, joka olisi sitten erikseen (I/O-pagen loppu
+n{{s, eli 177600 - 177777) johon mahtuisi juuri sopivasti PSR ja rekut.
+
+
+
+Assukoodiin lis{yksi{:
+
+GET_PAGE MACRO REG
+         MOV	CL,CS:shiftcount
+	 MOV	BX,REG
+	 SHR	BX,CL
+	 MOV	DS,CS:PAGETAB[BX]
+	 ENDM
+
+LAST_PAGE EQU   ES         ; ES:ss{ olkoon aina I/O-pagen segmentti.
+VEC_PAGE  EQU   jotain	   ; Vector-page (000000-010000) my|s ES:ss{ ?
+
+;
+; Here is the main execution cycle:
+MAIN_LOOP:
+        OR      LAST_PAGE: BYTE PTR [PRSTAT],READYBIT ; Set readybit of PRSTAT.
+        MOV     SI,LAST_PAGE: WORD PTR [PC_LOC] ; Get PC from its location.
+        TEST    SI,1            ; Check if odd...
+        JNZ     ODD_PC
+        CMP     SI,CS: WORD PTR [PC_LIM_BPT] ; If PC >= PC_limit_breakpoint
+        JAE     BREAK_POINT     ; then do the breakpoint.
+BACK:
+!       GET_PAGE SI
+        LODSW                   ; Fetch instruction to AX and add 2 to PC.
+!       TEST    SI,PAGEMASK     ; Test whether PC went over page boundary.
+!       JNZ     NORMAL
+!       GET_PAGE  SI            ; Get new page if necessary.
+NORMAL:
+        MOV     WORD PTR [PC_LOC],SI ; Store changed PC back to its location.
+        MOV     BX,AX           ; Copy of instruction to BX.
+        MOV     DX,BX           ; And to DX.
+
+PAGEMASK lasketaan shiftcountista seuraavasti:
+2 ^ shiftcount = sivun koko byteiss{. 2 ^ (16-shiftcount) on pagetablen koko.
+PAGEMASK = (2 ^ shiftcount)-2. Eli esim. jos sivun koko on 4096 byte{,
+ja shiftcount vastaavasti 12, niin 4096-2 = 4094 = 007776 oktaalisena.
+Maskissa on bitti-0 nolla sen takia jos Core War versiossa sallitaan PC:n
+olla pariton, ja jos se on kasvanut yhdell{ sivurajan yli, eli esim. 4097:{{n
+eli 10001:een, niin sekin huomataan.
+
+
+PC:n fetchin j{lkeen ehk{ pakollinen PC:n maskaus,
+autoincrementin ja -decrementin j{lkeen ko. rekulle my|s maskaus,
+ja modeissa 67 ja 77 (index) my|s PC:n tarkistus ja mahdollinen
+maskaus.
+

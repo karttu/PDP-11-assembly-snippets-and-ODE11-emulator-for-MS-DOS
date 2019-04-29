@@ -1,0 +1,33 @@
+;
+; GETLINE -- Terminal input routine, coded by AK.
+;
+	.MCALL	.TTYIN
+        .MCALL .REGDEF
+	.GLOBL	GETLINE
+;
+; Beginning of input buffer should be given in R0. Buffer is filled with
+; characters read in, until CR is encountered, then buffer is terminated
+; with zero. (CR is not taken to buffer). New value of R0 is returned,
+; pointing to that end zero. Length of stuff is returned in R2.
+; Other registers are not affected. (at least shouldn't be !)
+;
+GETLINE::
+        MOV     R1,-(SP)        ; Save R1.
+        MOV     R0,-(SP)        ; Save the original R0.
+	MOV     R0,R1           ; And copy it to R1.
+LOOP:	.TTYIN                  ; Read character to R0.
+        CMPB    R0,#12          ; Skip newlines.
+	BEQ     LOOP
+	MOVB	R0,(R1)+        ; Put other characters to buffer.
+	CMPB	R0,#15          ; Is it CR ?
+	BNE	LOOP		; Loop back if not.
+	CLRB	-(R1)           ; Overwrite the CR with terminating zero.
+	MOV     R1,R0           ; Copy R1 to R0 & R2.
+	MOV     R1,R2
+	SUB	(SP)+,R2	; Subtract beginning address to get the length.
+	MOV     (SP)+,R1        ; Restore R1.
+	RTS	PC              ; Return.
+;
+;
+;
+	.END

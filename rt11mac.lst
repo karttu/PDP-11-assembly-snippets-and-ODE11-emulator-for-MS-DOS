@@ -1,0 +1,15 @@
+Archive:  rt11mac.zip
+ Length  Method   Size  Ratio   Date    Time   CRC-32     Name
+ ------  ------   ----  -----   ----    ----   ------     ----
+   9657  Defl:N    2990  69%  01-02-91  13:23  07b9d7b8   RECHEX.MAC
+   1536  Defl:N     538  65%  12-08-90  03:10  392a6417   INTOUT.MAC
+    512  Defl:N      96  81%  12-08-90  03:10  d276e9f8   AVANTI.MAC
+    512  Defl:N      75  85%  12-08-90  03:10  948226c1   CONTST.MAC
+   1024  Defl:N     317  69%  12-08-90  03:11  27dff397   TESTI2.MAC
+    512  Defl:N      73  86%  12-08-90  03:10  56bdc3cd   CONTS2.MAC
+    512  Defl:N     226  56%  12-08-90  03:10  b9aa892c   HELLO2.MAC
+  11045  Defl:N    1834  83%  12-31-90  03:10  704d136e   M.MAC
+  16896  Defl:N    5025  70%  12-08-90  03:11  814ed744   SYSMAC.LIB
+  16384  Defl:N    4786  71%  12-08-90  03:11  db1af624   SYSMAC.SML
+ ------          ------  ---                              -------
+  58590           15960  73%                              10     

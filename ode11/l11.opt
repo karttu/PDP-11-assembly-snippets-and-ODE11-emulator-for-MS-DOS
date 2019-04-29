@@ -1,0 +1,2 @@
+b:od.lo b:e11.o b:getnchar.lo b:allocmem.lo a:strisave.lo a:globals.lo
+-la:my1libld -la:my1libld -la:mld -la:gld -la:cld -n -t -o b:ode11.exe

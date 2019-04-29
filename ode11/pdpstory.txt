@@ -1,0 +1,183 @@
+supermikrot:74  Timo Sivonen (tljs)  Fri Jan  9 11:33:58 1987
+(180 lines)  "Olipa kerran PDP"
+
+Koska t{{ll{ saattaa olla jokunen Digitalin koneiden historiasta
+kiinnostunut, p{{tin siirt{{ t{nne hieman USENETist{ tullutta teksti{.
+Keskustelu alkoi muistaakseni JACCT-bitin patentista, mutta laajeni
+koskemaan PDP:n historiaa. N{ht{v{sti VAXin synty ei ollut aivan tuskaton,
+sill{ aikanaan tapeltiin kovasti siit{ ett{ pit{{k| tietokoneen olla 32-
+vai 36-bittinen.
+
+Tekstin pituus selittyy muuten sill{, ett{ nidoin yhteen kaksi toisiinsa
+l{heisesti liittyv{{ artikkelia. Kuten tavallista, j{lkimm{inen korjailee
+edellist{.
+
+In article <610003@hpcnoe.UUCP>, jason@hpcnoe.UUCP (Jason Zions) writes:
+> Jerry Leichter says:
+> 
+> > I used TOPS-10 in 1969 or so; at the time it was already at Version 5 or
+> > thereabouts.  JACCT was already there; I don't know exactly when it was
+> > introduced.  TOPS-10 itself descended from earlier OS's for the PDP-15 (?),
+> > which, for all I know, already had JACCT or some analogue.
+> 
+> TOPS-10 didn't really descend from any OS; it was sort of written from
+> scratch with an interesting set of constraints. Someone from DEC wrote a book
+> discussing the design of the early versions of TOPS-10; fascinating reading.
+> 
+> If TOPS-10 were to descend from any DEC OS, it would be the one that ran on
+> the PDP-6, the predecessor to the PDP-10 (well, predecessor to the KA-10).
+> If memory serves, the PDP-15 was a pair of -11's hooked up in tandem (in the
+> same way a PDP-12 was a pair of PDP-8's in tandem). Exactly what the PDP-15
+> and PDP-12 were used for, I couldn't tell you.
+> 
+> (Here I am, correcting a correction. If someone corrects me, we may set a
+> record for levels of digression. This is net.arch, not net.ancient.history! )
+
+Sorry to correct you, but your information is so far off base that it requires
+correcting.  The PDP-15 and PDP-12 were not at all how you describe them.
+
+The PDP-15 was an 18-bit computer, derived from the 18-bit PDP-9, which 
+derived from the 18-bit PDP-7 (one of the original UNIX base machines), which
+had a common ancestor with the 36-bit PDP-6 in the PDP-4.  The PDP-15
+primarily added 8 index registers and slight modifications to the instruction
+set to handle them, plus some better I/O controls.  The PDP-15 was the base
+machine for RSX-15 (later RSX-15PLUS or just RSX-PLUS), which was the operating
+system predecessor to RSX-11D (later IAS).  Hank Krejci (Hank are you out
+there?) was one of the primary developers.  I programmed an Electrocardiogram
+over-the-phone analysis system using it (including dialback to doctor's offices
+and the like -- heady stuff for 1972).  The PDP-9 instruction set was a
+glorified PDP-8 instruction set, i.e. hardly any instructions -- the first
+RISC archtecture :-).
+
+The PDP-12 was a 12-bit computer derived from the LINC-8.  The LINC-8 was a
+join of the Laboratory INteractive Computer developed at MIT (I believe) and
+the PDP-8.  The LINC instruction set had a number of innovative instructions,
+particularly the "add two 12-bit integers plus the overflow carry" which
+provided an easy method for efficient multiple-precision arithmetic.  It also
+included a single instruction to read a tape block with or without wait
+(can you say Linctape -- identical to DECtape except that DECtape wound from
+the left reel to the right -- clever way around a patent :-) ), and several
+single instructions for efficient CRT displaying of data.  I firmly believe the
+LINC was one of the earliest innovators of application-relative CISC.  
+
+The LINC-8 ran LINC code when decoding instructions in the 2nd of the eight 1K 
+banks.  The PDP-12 allowed running either LINC or PDP-8 instructions anywhere;
+each instruction set had one additional instruction that switched to the other
+instruction decode mode.  Anyone in their right mind used the CISCish LINC set
+for all real work.  The PDP-8 was only used for I/O and "preexisting" code.
+
+This ability to switch the instruction mode anytime led to the (trivial) 
+pursuit of trying to write machine code that did something useful when 
+executed in PDP-8 mode, and something else useful when executed as LINC mode.  
+This was not always so trivial; the base machine only had 8K 12-bit words.  
+(Yea, we all KNEW there would be MB of memory to burn one day, but at the time 
+8K of 12-bit words and a 32K word disk -- not 32M word -- was all you could 
+afford for $20,000!!).  This trivial pursuit is, not suprisingly, very similar 
+to the trivial pursuit seen in another news group of trying to write high-level
+code that means "useful" things to two different languages; history always
+repeats itself.
+
+We had an multitasking system running on the PDP-12 that did real-time patient 
+monitoring of 4 patients for ECG, cardiac output, blood pressure, temperature, 
+plus several background jobs, including doing listings on the ASR-33.  Yes, it 
+was a true multitasking system, and included an aggregate 2K A/D samples per 
+second (with only 8K you had to process and dispose of the raw data real fast),
+real-time annotated displays (it really helped algorithm development to see the
+ECG waveform with cursor marks and numeric values, and to be able to freeze the
+display any time), and "human-friendly" interactive diagnosis.  See the 1971 
+Proceedings of the ACM Conference, p 682, if you really care (it doesn't hurt 
+to do a little looking at history, just to give yourself some perspective).
+
+Anyway, I always thought designers of instruction sets could learn something
+from the PDP-12 (the PDP-11 instruction set seems to have learned some of its
+instruction set there).  For the RISC proponents, there was a very nice
+instruction set architecture proposed at U of Washington around that same time,
+that provided for dropping into and out of (similar to PDP-8/LINC) a very 
+effiecient, minimal instruction set, that was "optimum" for computation of 
+expressions -- always thought that CISC and RISC might do better co-existing 
+than either does alone -- particularly an appliction-related CISC and
+expression evaluation RISC.  
+
+Finally, for those of you not wise enough to have hit "n" before now :-), the
+TOPS-10 system was derived from the PDP-6 OS with substantial influence from
+Project MAC.  It in NO way derived from the PDP-15, which was released 2 years
+after TOPS-10 had reached release 5.  The PDP-15 had DOS-15 (derived from
+DOS/BATCH-9 and KMS-9) and RSX-15 as mentioned before.
+
+I am also on shaky ground about the exact derivation of TOPS-10 - I just dug 
+up a copy of DECSystem10 User's Handbook (yes, I'm a hell of a pack rat), but 
+could not find any proper reference for the OS derivation.  However, it is 
+true that the PDP-6 was the PDP-10 predecessor (both were 36-bit), and as said 
+earlier, the PDP-4 was the predecessor to the PDP-6 (and the PDP-7).
+
+Just in case you wonder about the other PDP numbers:
+  PDP-1 was an 18-bit architecture that could be said to be the 
+    predecessor of the PDP-4.  It used real old discrete logic B-series
+    10MHz boards.  Hmmm -- 10MHz clock rate in 1962, and now we have, wonder
+    of wonders, 16.67Mhz "high-speed" micros -- haven't come as far as some
+    may think in 25 years. 
+  PDP-2 and PDP-3 were aborted -- never finalized.
+  PDP-5 was Edson DeCastro's first design -- it preceeded the PDP-8.  Edson
+    went on to found Data General when his version of the "new instruction
+    set architecture" lost out to Gordon Bell's PDP-11.  Sorry if I am
+    slighting other designers -- they are the best known.
+  PDP-13 was never born -- the number was excluded.
+  PDP-14 was a non-computer, methodology for building discrete logic
+    systems from R and S series flip-chips (DTL logic).
+  
+After the PDP-15, came VAX.
+
+Sorry to be so long typed (as in long winded, nothing to do with 32-bit
+integers), but I hate to see drastically incorrect information on the net.
+And anyway, this has far more content and utility than either the discussion
+on very large memory (as least the trivial digression on the number of
+electrons in the universe), and the one on what average to use for benchmarks 
+(if you cannot resist averaging benchmarks with no basis for weighting, only 
+the geomtric mean is defensible -- we did not really need 20 articles stating
+this simple fact :-) ).
+
+-----------------------------
+
+In article <2197@vrdxhq.UUCP> deller@vrdxhq.UUCP (Steven Deller) writes:
+>In article <610003@hpcnoe.UUCP>, jason@hpcnoe.UUCP (Jason Zions) writes:
+>> Jerry Leichter says:
+>> 
+>> 
+>> If memory serves, the PDP-15 was a pair of -11's hooked up in tandem (in the
+>> same way a PDP-12 was a pair of PDP-8's in tandem). Exactly what the PDP-15
+>> and PDP-12 were used for, I couldn't tell you.
+>> 
+>Sorry to correct you, but your information is so far off base that it requires
+>correcting.  The PDP-15 and PDP-12 were not at all how you describe them.
+>
+>The PDP-15 was an 18-bit computer, derived from the 18-bit PDP-9, which 
+>derived from the 18-bit PDP-7 (one of the original UNIX base machines), which
+>had a common ancestor with the 36-bit PDP-6 in the PDP-4.  The PDP-15
+>primarily added 8 index registers and slight modifications to the instruction
+>set to handle them, plus some better I/O controls.
+
+Perhaps this person was confused by the PDP-15/76, which was a PDP-15 with a
+small PDP-11 (/05?) built in as an I/O processor.  The PDP-11 was somewhat
+modified so the parity bits in its memory and data paths could be used to
+pass the 18 bit data used by the PDP-15.
+
+>  PDP-14 was a non-computer, methodology for building discrete logic
+>    systems from R and S series flip-chips (DTL logic).
+
+Noooo, the PDP-14 was a 'programmable' industrial controller.  The PDP-16 was
+the do-it-yourself 'computer' using register transfer modules.  I'd never
+seen something so intersting with such completely confusing documentation.
+
+They were M series (DTL and/or TTL) modules, please.  The R and S were DCD
+(diode-capacitor-diode) logic used in the original PDP-8 and other products
+in that timeframe.
+  
+Now to leave something correctable: (-8
+
+My old PDP-10 manuals leave the operating system almost nameless, alluding to
+things like Timesharing Monitors 10/40 and 10/15 which had been rechristened as
+'The Multiprogramming Disk Monitor' and 'Swapping Monitor'.  These had derived
+from the PDP-6 monitor programs.  My PDP-6 manuals are buried too far down to
+see what they called it.  Now was TOPS-10 a new products, or just a marketing
+name for the older monitor program, along with the revisionistic DECsystem-10
+name?

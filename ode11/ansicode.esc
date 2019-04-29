@@ -1,0 +1,9 @@
+
+ESC[xm
+where x is one of the following:
+ANSI-codes: 1 = Bold, 4 = Underscore, 5 = Blink, 7 = Inverse On
+
+ESC[0m to turn off the effects.
+
+Put ; between if more than one parameter, e.g.
+ESC[5;7m or ESC[7;5m for blinking & inverse on.

@@ -1,0 +1,1152 @@
+;
+; 345678901234567890123456789012345678901234567890123456789012345
+;
+        .ENABL  GBL, LC ; Important directives in RT11 !
+	.title	ObO ; Forth-style stack calculator.
+	.ident	/01/	; indentify module version
+;
+; author:  Antti Karttunen (E-mail: karttu@mits.mdata.fi)
+; status:  Public Domain.
+; written in March 1992.
+; RT11 version. Some EIS instructions replaced by something else.
+;
+; module function:
+;   Puupaa.
+;
+; I coded this software mainly to test the various arithmetic instructions
+; of the PDP-11 and to see what values and flags they _really_ return,
+; so that I can make my ODE11 emulator to work correctly.
+; Also this demonstrates how easily PDP-11 can be used as stack-oriented
+; machine.
+;
+	.page			; break page for preface
+	.sbttl	symbol, macro, data definitions
+	.list	ttm		; terminal listing mode
+;	.nlist  bex		; suppress bin extension
+	.mcall	.EXIT,.REGDEF   ; RT11's exit macro
+;
+;
+; local symbol definitions
+	in$bufsize  = 78.
+        out$bufsize = 79.
+	red$size = 10.
+;
+; local data blocks:
+;
+	.psect	data,d,rw
+flags:  .word   0
+inbuf:	.blkb	in$bufsize      ; define buffer for input.
+outbuf: .blkb   out$bufsize     ; define buffer for output.
+outend: .blkb   20              ; For output buffer overflow.
+	.even
+pstack: .blkw   256.            ; Space for 256 words in the parameter stack.
+redarea: .blkw  red$size        ; Ten words below stack (for underflow).
+errmsg: .ascii  /**Unmatched character: /
+errchar: .blkb  20              ; Some space for more information.
+helptexts:
+ .asciz "*      ( n1 n2 -- n3 ) <MUL>   : /      ( n1 n2 -- n3 ) <DIV>"
+ .asciz "*D     ( n1 n2 -- d1 ) <MUL>   : M/MOD  ( d1 n1 -- rem quot ) <DIV>"
+ .asciz "+      ( n1 n2 -- n3 ) <ADD>   : -      ( n1 n2 -- n3 ) <SUB>"
+ .asciz "1+     ( n1 -- n2 )    <INC>   : 1-     ( n1 -- n2 )    <DEC>"
+ .asciz "2*     ( n1 -- n2 )    <ASL>   : 2/     ( n1 -- n2 )    <ASR>"
+ .asciz "ROL    ( n1 -- n2 )            : ROR    ( n1 -- n2 )"
+ .asciz "NEGATE ( n1 --- n2 )   <NEG>   : ASH    ( n1 n2 -- n3 )"
+ .asciz "ASHC   ( d1 n2 -- d2 )         : ASHC1  ( n1 n2 -- n3 )"
+ .asciz "DROP   ( n1 -- )               : DUP    ( n1 -- n1 n1 )"
+ .asciz "SWAP   ( n1 n2 -- n2 n1 )      : OVER   ( n1 n2 -- n1 n2 n1 )"
+ .asciz "ROT    ( n1 n2 n3 -- n2 n3 n1 ): 2SWAP  ( n1 n2 n3 n4 -- n3 n4 n1 n2)"
+ .asciz "2DROP  ( n1 n2 -- )            : 2DUP   ( n1 n2 -- n1 n2 n1 n2 )"
+ .asciz "C      ( *  -- ) <clear stack> : ?      ( -- )  <this help list>"
+ .asciz ".S     ( -- )    <print stack> : .F     ( -- )  <print flags>"
+ .asciz ".  ( n -- ) <print signed 16bit>  D. ( d -- )  <print signed 32bit>"
+ .asciz "U. ( n -- ) <print unsigned 16b>  UD.( ud -- ) <print unsigned 32bit>"
+ .asciz "O. ( n -- ) <print unsigned 16bit word as six-digit octal number>"
+ .asciz "And some more words: 2OVER, !F, <-, MFPT, SWAB and ; for comments."
+ .asciz "Number input examples:  12345  +12  -123 (sixteen bit dec numbers)."
+ .asciz "123,456,789  (32 bit dec numbers, high word top, low word below it)."
+ .asciz "0777 (16 bit octal numbers, must be preceded by zero.)"
+ .asciz "Input lines can be max. 77 chars. Enter empty line to finish."
+ .byte  0                       ; End marker for HELP function.
+        .even
+;
+; String argument must be enclosed in angle brackets if it has blanks
+; or other delimiter characters in it (commas?). So that this macro
+; understands it as one argument.
+; I.e: PRINTS <"This is a string">
+        .MACRO  PRINTS  STRING
+	JSR     PC,IWRITE
+	.ASCIZ  STRING
+	.EVEN
+	.ENDM
+;
+        .MACRO  COMPARE STRING
+	JSR     PC,ISTREQU
+	.ASCIZ  STRING
+	.EVEN
+	.ENDM
+;
+; Macro to multiply X by 10. Any excess bits are simply lost.
+        .MACRO MUL1TEN X
+	ASL    X                ;; Double X
+	MOV    X,-(SP)          ;; Save that to stack.
+	ASL    X                ;; Double two
+	ASL    X                ;;  times more, i.e. multiply by eight.
+	ADD    (SP)+,X          ;; And add the 2*X to get the result.
+	.ENDM
+;
+; Macro to multiply first argument by 10, and return doubleword so that
+; high word is in first argument, and low word is in second one.
+; Called for example as MUL2TEN R2,R3
+        .MACRO MUL2TEN HI,LO
+	MOV    HI,LO            ;; Move HI to LO.
+	CLR    HI               ;; And clear high word.
+	MOV    LO,-(SP)         ;; Save LO to stack.
+	ASL    LO               ;; Double it three
+	ROL    HI               ;;  times, i.e. multiply by eight.
+	ASL    LO
+	ROL    HI
+	ASL    LO
+	ROL    HI
+	ASL    (SP)             ;; Double the original LO.
+	ADC    HI               ;; And add possible carry bit to HI.
+	ADD    (SP)+,LO         ;; And add 2*LO to 8*LO.
+	ADC    HI               ;; Again, carry to HI.
+	.ENDM
+;
+; Function details:
+;
+; Stack calculator using RPN notation.
+;
+; R0 usually contains a pointer to input buffer (inbuf), and it
+; shouldn't be corrupted!
+; R5 is parameter stack pointer. It grows minusward from #redarea.
+; In mainloop it's first skipped any blanks and tabs from that point
+; onward where R0 is pointing to. Then, if R0 points to some character,
+; we jump through jumptable using that as index, and there is some
+; further dispatching code to determine the correct operation.
+; But if R0 points to zero (i.e., to the end of input buffer), then
+; new line is read in, it's converted to uppercase, and same things
+; are done.
+; After the operation, control returns to mainloop.
+; And of course there is some error control (stack over- or underflow,
+; erroneous input, etc.) stuffed somewhere.
+;
+; Start code here:
+	.page
+	.sbttl	start of code
+	.psect
+start:: ; For debugging.
+        PRINTS  <"ObO - Forth-like stack calculator. Enter ? for help.">
+; Clear redarea:
+        jsr     pc,clr$red
+;
+	mov     #redarea,r5     ; Use R5 for parameter stack pointer.
+	mov	#inbuf,r0       ; load buffer addr
+	clrb    (r0)            ; Clear the first char. of inbuf
+mainloop:
+        jsr     pc,check$stack
+	bne     readnewline     ; If under- or overflown, then read new line.
+	jsr     pc,skip$blankos ; Skip the blanks.
+	tstb    (r0)            ; Check whether end of line.
+	bne     huda            ; If not, then skip.
+; But if the end of line encountered, then read new line in:
+readnewline:
+        PRINTS  <" ">
+	mov	#inbuf,r0       ; load buffer addr
+	mov	#in$bufsize,r1  ; load buffer size
+	jsr	pc,getline      ; read from tty to inbuf.
+	tst	r2		; any chars in buffer ?
+	beq	end		; in none, finish up
+	mov     #inbuf,r0       ; Move #inbuf back to R0.
+	jsr     pc,convert$upper ; And convert buffer to uppercase.
+	jsr     pc,skip$blankos ; Skip the blanks.
+	tstb    (r0)            ; Check whether end of line.
+	beq     readnewline     ; Read again in that case.
+huda:
+	movb    (r0),r1         ; Get the first non-blank character.
+	bit     r1,#^C0177      ; If character above 127.
+	bne     ertzu           ; then print error message.
+	asl     r1              ; Double R1 to get the word index.
+	jsr     pc,@jumptable(r1) ; Jump through jumptable.
+	jmp     mainloop        ; Loop back.
+ertzu:
+        jsr     pc,ERROR
+	jmp     readnewline
+;
+check$stack:
+	cmp     r5,#redarea     ; Check whether parameter stack has underflown
+	bhi     underflow
+	cmp     r5,#pstack      ; or overflown...
+	blos    overflow
+	sez                     ; Set zero flag to indicate that it's all right
+	rts     pc
+underflow:
+; Clear redarea:
+        jsr     pc,clr$red
+	PRINTS  <"**Stack underflow!">
+	br      zonk
+;
+overflow:
+	PRINTS  <"**Stack overflow!">
+zonk:
+	mov     #redarea,r5     ; Initialize parameter stack pointer.
+	clz                     ; Clear zero flag to indicate the stack error.
+	rts     pc
+;
+;
+end:	.EXIT			; exit cleanly to exec
+;
+clr$red:
+; Clear redarea:
+	mov     #red$size,r1
+	mov     #redarea,r0
+10$:	clr     (r0)+
+	sob     r1,10$
+	rts     pc
+;
+ISDELIMP: ; If (R0) is ending-zero, blank or tab, then z-flag will be 1,
+; otherwise zero.
+        TSTB    (R0)
+	BEQ     10$
+        CMPB    (R0),#32.
+	BEQ     10$
+	CMPB    (R0),#9.
+10$:    RTS     PC
+;
+; =========================================================================
+; Some stack manipulating primitives.
+; DROP, DUP, OVER, ROT, SWAP, 2DROP, 2DUP, 2OVER, 2SWAP (But no 2ROT !)
+;
+DROP:   TST     (R5)+           ; Drop element.
+        RTS     PC
+;
+DUP:    MOV     (R5),-(R5)      ; Duplicate the top element.
+        RTS     PC
+;
+; Get the second topmost element and put it to top:
+OVER:   MOV     2(R5),-(R5)
+        RTS     PC
+; Do the (n1 n2 n3 -- n2 n3 n1)
+ROT:    MOV     4(R5),R1        ; Save the n1.
+        MOV     2(R5),4(R5)     ; Drop n2 to bottom.
+	MOV     (R5)+,(R5)      ; And n3 also one step lower.
+	MOV     R1,-(R5)        ; Put n1 to top.
+	RTS     PC
+;
+; Swap two topmost elements:
+SWAP:   MOV     (R5)+,R1        ; Get the topmost element to R1.
+        MOV     (R5),-(R5)      ; Duplicate the element which was below it.
+	MOV     R1,2(R5)        ; And put the old topmost one below it.
+	RTS     PC
+;
+$2DROP: CMP     (R5)+,(R5)+     ; Drop two elements.
+        RTS     PC
+;
+; Duplicate the double element.
+$2DUP:  MOV     2(R5),-(R5)     ; Just OVER
+        MOV     2(R5),-(R5)     ;  two times, does the job.
+	RTS     PC
+;
+; Pick the second topmost double element to top.
+$2OVER: MOV     6(R5),-(R5)     ; Get the fourth topmost element to top.
+        MOV     6(R5),-(R5)     ; And third topmost on top of that.
+        RTS     PC
+;
+; Swap two topmost double-elements:
+$2SWAP: MOV     (R5)+,R1        ; Pop top one to R1
+        MOV     (R5)+,R2        ;  and R2
+	MOV     2(R5),-(R5)     ; Duplicate the double element
+	MOV     2(R5),-(R5)     ;  below.
+	MOV     R1,4(R5)        ; And overwrite the double element
+	MOV     R2,6(R5)        ; below with one saved to R1 & R2.
+        RTS     PC
+;
+; =========================================================================
+;
+CLEAR:
+        INC     R0              ; Get the input pointer past C letter.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     #redarea,R5     ; Clear stack, i.e. initialize stack pointer.
+	RTS     PC
+;
+PLUS:
+        INC     R0              ; Get the input pointer past + sign.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$: ;  JMP     ADD$
+ADD$:
+        ADD     (R5)+,(R5)      ; Add two topmost elements of the stack.
+        MFPS    flags           ; Save processor flags information.
+	RTS     PC
+;
+MINUS:
+        INC     R0              ; Get the input pointer past - sign.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$: ;  JMP     SUB$
+SUB$:
+        SUB     (R5)+,(R5)      ; Subtr. topmost element from the one below it.
+        MFPS    flags           ; Save processor flags information.
+	RTS     PC
+;
+TIMES:
+        INC     R0              ; Get the input pointer past the asterisk.
+	CMPB    (R0),#'D        ; Is the next character D ?
+	BNE     5$
+	JMP     TIMESDOUBLE
+5$:	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     (R5)+,R1        ; Get the topmost element to R1.
+	MUL     (R5),R1         ; Multiply it with the element below.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put result back to stack.
+	RTS     PC
+;
+;
+TIMESDOUBLE:
+        INC     R0              ; Get the input pointer past the letter D.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     R0,-(SP)        ; Save the R0.
+        MOV     (R5)+,R0        ; Get the topmost element to R0.
+	MUL     (R5),R0         ; Multiply it with the element below.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put low word of the result back to stack.
+	MOV     R0,-(R5)        ; And also the high word.
+	MOV     (SP)+,R0        ; Restore R0 from the system stack.
+	RTS     PC
+;
+DIVIDE:
+        INC     R0              ; Get the input pointer past the asterisk.
+5$:	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     R0,-(SP)        ; Save the R0.
+        MOV     (R5)+,R2        ; Get the topmost element to R2.
+	MOV     (R5),R1         ; And element below it to R1.
+	CLR     R0              ; Clear high word.
+	DIV     R2,R0           ; Divide R0:R1 with R2.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R0,(R5)         ; Put quotient back to stack.
+	MOV     (SP)+,R0        ; Restore R0 from the system stack.
+	RTS     PC
+;
+MFPT$:  MOV     R0,-(SP)        ; Save the R0.
+        MFPT                    ; Get the processor model code to R0.
+	MOV     R0,-(R5)        ; Save it to stack.
+	MOV     (SP)+,R0        ; Pop original input pointer back from stack.
+	RTS     PC
+;
+M$SLASH$MOD:
+        MOV     R0,-(SP)        ; Save the R0.
+        MOV     (R5)+,R2        ; Get the topmost element to R2. (Divisor)
+	MOV     (R5)+,R0        ; And elem below it to R0. (High of dividend).
+	MOV     (R5),R1         ; And the third one to R1. (Low  of dividend).
+	DIV     R2,R0           ; Divide R0:R1 with R2.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put remainder to place of dividend low word.
+	MOV     R0,-(R5)        ; And push quotient on the top of it.
+	MOV     (SP)+,R0        ; Restore R0 from the system stack.
+	RTS     PC
+;
+ASH$: ; n1 n2 ASH -> ASH n2,n1
+        MOV     (R5)+,R3        ; Get the topmost element to R3. (Shift count)
+	MOV     (R5),R1         ; And element below it to R1.
+	ASH     R3,R1           ; Shift R1 by R3 bits to some direction.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put result back to stack.
+	RTS     PC
+;
+ASHC1$: ; n1 n2 ASHC1 -> ASHC n2,n1 (Using single register).
+        MOV     (R5)+,R3        ; Get the topmost element to R3. (Shift count)
+	MOV     (R5),R1         ; And element below it to R1.
+	ASHC    R3,R1           ; Shift R1 by R3 bits to some direction.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put result back to stack.
+	RTS     PC
+;
+ASHC$: ; d1 n2 ASHC -> ASHC n2,d1 (Using double register R0:R1)
+        MOV     R0,-(SP)        ; Save the R0.
+        MOV     (R5)+,R3        ; Get the topmost element to R3. (Shift count)
+	MOV     (R5)+,R0        ; And element below it to R0. (High word).
+	MOV     (R5),R1         ; And third element too R1. (Low word).
+	ASHC    R3,R0           ; Shift R0:R1 by R3 bits to some direction.
+        MFPS    flags           ; Save processor flags information.
+	MOV     R1,(R5)         ; Put result back to stack. (low word).
+	MOV     R0,-(R5)        ;  and high word.
+	MOV     (SP)+,R0        ; Restore R0.
+	RTS     PC
+;
+NEGATE: ; NEGATE or NEG
+        NEG     (R5)            ; Negate the top element of the stack.
+	MFPS    flags           ; And save flags information.
+	RTS     PC
+;
+INC$:  ; 1+
+        MTPS    flags           ; Put previous result to PSW.
+        INC     (R5)            ; Increment top of the stack by one.
+	MFPS    flags           ; And save flags information.
+	RTS     PC
+;
+DEC$: ; 1-
+        MTPS    flags           ; Put previous result to PSW.
+        DEC     (R5)            ; Decrement top of the stack by one.
+	MFPS    flags           ; And save flags information.
+	RTS     PC
+;
+ASL$: ; 2*
+        ASL     (R5)            ; Shift top of the stack one left.
+	MFPS    flags           ; And save flags information.
+	RTS     PC
+;
+ASR$: ; 2/
+        ASR     (R5)            ; Shift top of the stack one right.
+	MFPS    flags           ; And save flags information.
+	RTS     PC
+;
+ROL$:
+        MTPS    flags           ; Put previous result to PSW.
+	ROL     (R5)            ; Rotate top of the stack one left.
+	MFPS    flags           ; And save the new flags information.
+	RTS     PC
+;
+ROR$:
+        MTPS    flags           ; Put previous result to PSW.
+	ROR     (R5)            ; Rotate top of the stack one right.
+	MFPS    flags           ; And save the new flags information.
+	RTS     PC
+;
+SWAB$:
+	SWAB    (R5)            ; Swap bytes in the topmost element in stack.
+	MFPS    flags           ; And save the new flags information.
+	RTS     PC
+;
+EXCLAM:
+        INC     R0
+	COMPARE "F"
+	BNE     10$
+	JMP     EXLA$F
+10$:
+        JMP     ERROR
+;
+DOT: ; . Print single word from stack as unsigned.
+        INC     R0              ; Get the input pointer past the period.
+	CMPB    (R0),#'S        ; Is the next character S ?
+	BNE     5$
+        JMP     DOT$S
+5$:     CMPB    (R0),#'F
+        BNE     7$
+	JMP     DOT$F
+7$:
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     R0,-(SP)        ; Save input pointer.
+	MOV     #outbuf,R0
+	MOV     (R5)+,R1        ; Get the word to be printed from the stack.
+	JSR     PC,SINT16BUF    ; And convert it to ascii (Signed).
+	MOV     #outbuf,R0      ; Again set R0 to beginning of outbuf.
+	JSR     PC,PUTS         ; And output the result.
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+D$DOT: ; D. Print double word as signed.
+        MOV     R0,-(SP)        ; Save input pointer.
+	MOV     #outbuf,R0      ; Set R0 to outbuf for outputting.
+	MOV     (R5)+,R1        ; Get dword to be printed from the stack. High
+	MOV     (R5)+,R2        ; & Low word.
+	JSR     PC,SINT32BUF    ; And convert it to ascii.
+	MOV     #outbuf,R0      ; Again set R0 to beginning of outbuf.
+	JSR     PC,PUTS         ; And output the result.
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+UD$DOT: ; UD. Print double word as unsigned.
+        MOV     R0,-(SP)        ; Save input pointer.
+	MOV     #outbuf,R0      ; Set R0 to outbuf for outputting.
+	MOV     (R5)+,R1        ; Get dword to be printed from the stack. High
+	MOV     (R5)+,R2        ; & Low word.
+	JSR     PC,INT32BUF     ; And convert it to ascii.
+	MOV     #outbuf,R0      ; Again set R0 to beginning of outbuf.
+	JSR     PC,PUTS         ; And output the result.
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+U$DOT: ; U. Print single word as unsigned.
+        MOV     R0,-(SP)        ; Save input pointer.
+	MOV     #outbuf,R0      ; Set R0 to outbuf for outputting.
+	MOV     (R5)+,R1        ; Get word to be printed from the stack.
+	JSR     PC,INT16BUF     ; And convert it to ascii.
+	MOV     #outbuf,R0      ; Again set R0 to beginning of outbuf.
+	JSR     PC,PUTS         ; And output the result.
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+O$DOT: ; O. Print single word as unsigned 6-digit octal.
+        MOV     R0,-(SP)        ; Save input pointer.
+	MOV     #outbuf,R0      ; Set R0 to outbuf for outputting.
+	MOV     (R5)+,R1        ; Get word to be printed from the stack.
+	JSR     PC,ITOO         ; And convert it to ascii octal.
+	MOV     #outbuf,R0      ; Again set R0 to beginning of outbuf.
+	JSR     PC,PUTS         ; And output the result.
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+EXLA$F: ; n !F puts integer n into variable flags & processor status register.
+        MOV     (R5)+,flags     ; Get top of the stack to variable flags.
+	MTPS    flags           ; Move it also to processor status register.
+	RTS     PC
+;
+DOT$F: ; .F  print the flag bits NZVC last saved to variable flag.
+        INC     R0              ; Get the input pointer past the letter F.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     R0,-(SP)        ; Save the input pointer.
+	MOV     #outbuf,R0      ; Set R0 to point to output area.
+	MOV     #10,R1          ; Initialize bit-index R1 to mask 10 (= 16.)
+20$:	MOV     #'0,R2          ; R2 is '0' or '1'
+	BIT     R1,flags        ; Check if corresponding bit is on in flags.
+	BEQ     30$             ; (if not, then keep R2 zero).
+	INC     R2              ; But if it is, then increment it to '1'
+30$:    MOVB    R2,(R0)+        ; And put the digit to output buffer.
+        ASR     R1              ; Shift bit index right by one.
+	BNE     20$             ; And loop back so long as not zero.
+;
+        CLRB    (R0)            ; Put the ending zero to output buffer.
+	MOV     #outbuf,R0      ; And print
+	JSR     PC,PUTS         ;  it out!
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+DOT$S:
+        INC     R0              ; Get the input pointer past the letter S.
+	JSR     PC,ISDELIMP     ; Is the next character valid delimiter?
+	BEQ     10$
+	JMP     ERROR           ; If not, then signal error.
+10$:
+        MOV     R0,-(SP)        ; Save the input pointer.
+	MOV     #outbuf,R0      ; First print the size of stack now.
+	MOVB    #'<,(R0)+       ; Put opening angle bracket.
+	MOV     #redarea,R1     ; Get the origin of parameter stack pointer
+	SUB     R5,R1           ; And subtract the current P-SP from it.
+	ASR     R1              ; Divide by 2 because they were word indexes
+	JSR     PC,INT16BUF     ; And convert it to ascii.
+	MOVB    #'>,(R0)+       ; Put closing angle bracket.
+	CMP     R5,#redarea     ; If stack overflown or empty
+	BHIS    40$             ;  then don't try to print it.
+	MOV     #redarea,R2
+20$: ; Then print the elements of stack, from bottom to top:
+        MOVB    #32.,(R0)+      ; Put one blank.
+	MOV     -(R2),R1        ; Get word from the stack
+	JSR     PC,INT16BUF     ; And convert it to buffer.
+	CMP     R0,#outend      ; If output overflow.
+	BHIS    30$
+	CMP     R2,R5           ; Loop so long as R2 is "below" R5,
+	BHI     20$             ; i.e., it's higher than R5.
+30$:    CLRB    outend          ; Clear outend.
+40$:
+        CLRB    (R0)            ; Put the ending zero to output buffer.
+	MOV     #outbuf,R0      ; And print
+	JSR     PC,PUTS         ;  it out!
+	MOV     (SP)+,R0        ; Restore the input pointer.
+	RTS     PC
+;
+; <- ( n -- )  Sets input pointer R0 back to beginning if n is non-zero:
+TO$LEFT:
+        MOV     (R5)+,R1        ; Pop the test item to R5.
+        JSR     PC,CHECK$STACK  ; Check stack.
+        BEQ     20$             ; If ok.
+        MOV     #inbuf,R0       ; If not ok, then initialize the input pointer.
+	CLRB    (R0)            ; And clear first byte, i.e. force to read new
+        RTS     PC              ; line in.
+20$:
+        TST     R1              ; Test the test-item.
+        BEQ     30$             ; If zero ?
+        MOV     #inbuf,R0       ; If non-zero then set R0 back to beginning.
+30$:
+        RTS     PC
+;
+;
+NUMBER:
+        JSR     PC,ATOL
+; Note that label LAHNA _must_ be always non-zero so that - works. See ugly
+; code in function ATOL for more information.
+LAHNA::
+        JSR     PC,ISDELIMP     ; If next character after digits is not
+	BEQ     5$              ;  valid delimiter,
+	JMP     ERROR           ;   then jump to error routine.
+5$:     MOV     R3,-(R5)        ; Put low word to stack.
+	TST     R1              ; Test comma flag.
+        BEQ     10$
+	MOV     R2,-(R5)        ; Put high word too, if comma flag was on.
+10$:    RTS     PC
+;
+;
+DIG$0: ; Numbers beginning with zero are understood as unsigned octal singles.
+        JSR     PC,ATOO         ; Convert octal to binary, starting from 1st 0.
+        JSR     PC,ISDELIMP     ; If next character after digits is not
+	BEQ     5$              ;  valid delimiter,
+	JMP     ERROR           ;   then jump to error routine.
+5$:     MOV     R1,-(R5)        ; And put result to stack.
+	RTS     PC              ; Return.
+;
+;	
+DIG$1:  INC     R0              ; Skip the digit 1.
+        COMPARE "+"             ; Is it 1+ ?
+	BNE     20$
+	JMP     INC$
+20$:
+        COMPARE "-"             ; Is it 1- ?
+	BNE     30$
+	JMP     DEC$
+30$: ; If not 1+ nor 1- then test whether it is ordinary number:
+        DEC     R0              ; So set R0 to point back to that digit 1
+        JMP     NUMBER          ; And call NUMBER.
+;
+DIG$2:  INC     R0              ; Skip the digit 2.
+        COMPARE "*"             ; Is it 2* ?
+	BNE     20$
+	JMP     ASL$
+20$:
+        COMPARE "/"             ; Is it 2/ ?
+	BNE     30$
+	JMP     ASR$
+30$:
+        COMPARE "DROP"          ; Is it 2DROP ?
+	BNE     40$
+	JMP     $2DROP
+40$:
+        COMPARE "DUP"           ; 2DUP ?
+	BNE     50$
+	JMP     $2DUP
+50$:
+        COMPARE "OVER"          ; 2OVER ?
+	BNE     60$
+	JMP     $2OVER
+60$:
+        COMPARE "SWAP"          ; 2SWAP ?
+	BNE     70$
+	JMP     $2SWAP
+70$:
+ ; If not 2* nor 2/ then test whether it is ordinary number:
+        DEC     R0              ; So set R0 to point back to that digit 2
+        JMP     NUMBER          ; And call NUMBER.
+;
+SEMI$COLON: ; Use semicolon (;) for comments.
+        MOV     #inbuf,R0       ; Skip the rest of input buffer.
+	CLRB    (R0)            ; And clear first byte, i.e. force to read new
+	RTS     PC
+;
+LESS$THAN: ; <
+        INC     R0
+	COMPARE "-"             ; Is it <- ?
+	BNE     20$
+	JMP     TO$LEFT
+20$:
+        JMP     ERROR
+;
+QUEST$MARK: ; ?
+        INC     R0              ; Skip ?
+	COMPARE ""              ; Is it ?
+	BNE     20$
+	JMP     HELP
+20$:
+        JMP     ERROR
+;
+LET$A:
+        INC     R0
+	COMPARE "DD"
+	BNE     20$
+	JMP     ADD$
+20$:
+	COMPARE "SH"            ; ASH ?
+	BNE     120$
+	JMP     ASH$
+120$:
+        COMPARE "SHC"           ; ASHC ?
+	BNE     130$
+	JMP     ASHC$
+130$:
+        COMPARE "SHC1"          ; ASHC1 ?
+	BNE     140$
+	JMP     ASHC1$
+140$:
+	COMPARE "SL"
+	BNE     150$
+	JMP     ASL$
+150$:
+        COMPARE "SR"
+	BNE     160$
+	JMP     ASR$
+160$:
+        JMP     ERROR
+;
+LET$D:
+        INC     R0              ; Get the input pointer past the letter D
+	COMPARE "."             ; Is it D.
+	BNE     20$
+	JMP     D$DOT
+20$:
+        COMPARE "EC"
+	BNE     25$
+	JMP     DEC$
+25$:
+        COMPARE "ROP"           ; Is it DROP ?
+	BNE     30$
+	JMP     DROP
+30$:
+        COMPARE "UP"            ; Is it DUP ?
+	BNE     40$
+	JMP     DUP
+40$:
+        JMP     ERROR
+;
+LET$I:  INC     R0
+        COMPARE "NC"
+	BNE     20$
+        JMP     INC$
+20$:
+        JMP     ERROR
+;
+;
+LET$M:
+        INC     R0              ; Get the input pointer past the letter M
+	COMPARE "/MOD"          ; Is it M/MOD
+	BNE     20$
+	JMP     M$SLASH$MOD
+20$:
+        COMPARE "FPT"           ; MFPT ?
+	BNE     30$
+	JMP     MFPT$
+30$:
+        JMP     ERROR
+        RTS     PC
+;
+LET$N:
+        INC     R0
+	COMPARE "EG"            ; NEG ?
+	BNE     10$
+	JMP     NEGATE
+10$:
+	COMPARE "EGATE"         ; NEGATE ?
+	BNE     20$
+	JMP     NEGATE
+20$:
+        JMP     ERROR
+;
+LET$O:
+        INC     R0
+	COMPARE "."             ; O. ?
+	BNE     15$
+	JMP     O$DOT
+15$:
+	COMPARE "VER"           ; OVER ?
+	BNE     20$
+	JMP     OVER
+20$:
+        JMP     ERROR
+;
+LET$R:
+        INC     R0
+	COMPARE "OL"
+	BNE     20$
+	JMP     ROL$
+20$:
+        COMPARE "OR"
+	BNE     30$
+	JMP     ROR$
+30$:
+	COMPARE "OT"            ; ROT ?
+	BNE     40$
+	JMP     ROT
+40$:
+        JMP     ERROR
+;
+LET$S:
+        INC     R0              ; Get the input pointer past the letter S
+	COMPARE "UB"
+	BNE     20$
+	JMP     SUB$
+20$:
+        COMPARE "WAB"
+	BNE     25$
+	JMP     SWAB$
+25$:
+        COMPARE "WAP"           ; Is it SWAP ?
+	BNE     30$
+	JMP     SWAP
+30$:
+        JMP     ERROR
+;
+LET$U:
+        INC     R0              ; Get the input pointer past the letter U
+	COMPARE "."             ; Is it U.
+	BNE     20$
+	JMP     U$DOT
+20$:
+        COMPARE "D."            ; Is it UD.
+	BNE     30$
+	JMP     UD$DOT
+30$:
+        JMP     ERROR
+;
+	
+; When called, R0 should point to beginning of number text.
+; Returns long word result in R2 (high word) & R3 (low word),
+; and R0 points to the first non-digit character, and
+; R1 is non-zero if commas (,) were encountered.
+;
+ATOL: ; Convert decimal number to single- or doubleword binary.
+	CLR	R1		; Clear comma flag.
+        CLR     R2              ; Clear result, high word
+	CLR	R3              ;  and low word.
+	MOV     #0,-(SP)        ; "Clear" signflag.
+	CMPB    (R0),#',        ; Is there a comma ?
+	BNE     10$
+	COM     R1              ; Set comma flag in that case.
+	INC     R0              ; And skip that comma.
+10$:	CMPB	(R0),#'+	; Is there + sign ?
+	BEQ	HURU
+	CMPB	(R0),#'-	; Is there - sign ?
+	BNE	NAKKI
+	COM	(SP)		; Set sign flag, which is kept in stack
+HURU:   MOVB    1(R0),R4        ; Check the next character.
+        CMPB    R4,#',          ; If comma, then OK.
+	BEQ     35$
+        CMP     R4,#'0
+	BLO     30$             ; If lower than digit '0'
+	CMP     R4,#'9
+	BLOS    35$             ; Or higher than digit '9'
+; This is a kludge. It works only if we can be sure that
+; label LAHNA is non-zero in function NUMBER. This works as follows:
+; It pops sign flag from the stack, which is 0 or 177777, and which
+; is anded with return address which is also popped from stack.
+; And if result of that is non-zero, then jump to MINUS, otherwise to PLUS.
+; Return address is dropped so that when PLUS or MINUS returns with RTS PC
+; they don't return to label LAHNA in NUMBER, but to mainloop instead.
+30$:    BIT     (SP)+,(SP)+     ; Test sign flag, and drop return addr.
+        BEQ     32$             ; If it was set on,
+	JMP     MINUS           ;  then jump to MINUS routine,
+32$:	JMP     PLUS            ;   otherwise to PLUS routine.
+35$:	INC	R0		; Skip sign
+NAKKI:	MOVB	(R0)+,R4        ; Get next digit.
+	SUB	#'0,R4		; Subtract digit '0' (060 in octal).
+	BMI	ULOS		; If R4 less than '0'
+	CMPB	R4,#11		; If R4 was over '9' ?
+	BHI	ULOS
+	MOV     R2,-(SP)        ; Swap
+	MOV     R3,R2           ;  R2 and
+	MOV     (SP)+,R3        ;   R3
+; Following MUL's are replaced by macros because MUL is EIS instruction,
+; and my PDT-11/150 haven't got them:
+;	MUL	#10.,R3		; Multiply previous high word by ten.
+        MUL1TEN R3              ; Use this macro instead.
+	MOV     R3,-(SP)        ; Save it to stack.
+;	MUL     #10.,R2         ; Multiply previous low word by ten.
+        MUL2TEN R2,R3           ; This macro multiplies R2 by 10 -> R2:R3
+	ADD     (SP)+,R2        ; Add previous high word*10 to high.
+	ADD	R4,R3		; Add new digit to low word.
+	ADC     R2              ;  and to high word too.
+	BR	NAKKI		; And loop back.
+ULOS:   CMP     R4,#-4          ; Check whether it was comma
+        BNE     40$             ; (',' - '0' = -4)
+	MOV     #1,R1           ; Set commaflag.
+	BR      NAKKI           ; And branch back to loop.
+40$:    DEC     R0              ; Set R0 point back to first non-digit.
+	TST	(SP)+		; Is sign flag set?
+	BEQ	60$
+	TST     R1              ; Is comma flag set?
+	BNE     50$             ; If it is.
+	NEG	R3		; Negate result if there was - sign
+	BR      60$
+50$:    COM     R3              ; Complement low &
+        COM     R2              ;  high word.
+	ADD     #1,R3           ; Increment low word by one,
+	ADC     R2              ; and add carry to high word.
+60$:    RTS	PC		; Return.
+;
+;
+ERROR:
+        mov     r0,-(sp)        ; Save the pointer to triggering char in stack.
+; First print N blanks and caret, so that caret will be below the offending
+; character.
+	mov     r0,r1           ; Get copy also to R1.
+	mov     #outbuf,r0      ; Pointer to output buffer.
+	sub     #inbuf,r1       ; Get index to input buffer.
+	beq     7$              ; If result zero, the don't put any blanks.
+5$:     movb    #040,(r0)+      ; Otherwise put R1 blanks
+        sob     r1,5$
+7$:	movb    #'^,(r0)+       ; And caret after them.
+        clrb    (r0)            ; and ending zero.
+	mov     #outbuf,r0      ; Then print
+	jsr     pc,puts         ;  the output buffer.
+;
+        mov     #errchar,r1     ; Get pointer to the errchar.
+	mov     (sp),r0         ; Get saved R0 from the stack.
+	movb    (r0),r0         ; Get the triggering character.
+	cmpb    r0,#32.         ; If control character.
+	blo     10$
+	cmpb    r0,#126.        ; If over 126.
+	bhi     15$
+	movb    r0,(r1)+        ; If ordinary char, then just put it to buf.
+	br      20$
+10$:    add     #64.,r0         ; If control character...
+        br      16$
+15$:    movb    #'?,r0          ; If something other, then put ^?
+16$:    movb    #'^,(r1)+
+        movb    r0,(r1)+
+20$:
+	movb    #040,(r1)+      ; One blank more.
+	mov     r1,r0           ; Move pointer to R0.
+        clr     r1              ; Clear R1 first,
+	bisb    @(sp)+,r1       ; Then or the trig.char onto it, without sxt.
+	jsr     pc,int16buf     ; Put decimal number to the buffer.
+	movb    #'.,(r0)+       ; And put period after it to indicate decimal.
+	clrb    (r0)            ; And ending zero.
+	mov     #errmsg,r0      ; Then output the whole stuff.
+	jsr     pc,puts         ; Print the error message.
+; Clear stack & input buffer:
+        jsr     pc,clr$red
+	mov     #redarea,r5     ; Use R5 for parameter stack pointer.
+	mov	#inbuf,r0       ; Initialize input buffer address.
+	clrb    (r0)            ; Clear the first char. of inbuf
+;
+	rts     pc
+;
+HELP:
+        mov     r0,-(sp)        ; Save the original R0
+        mov     #helptexts,r0   ; Start printing from here.
+10$:
+	jsr     pc,puts         ; Returns R0 intact, and len of string in R1.
+	add     r1,r0           ; Add length of string to old value of R0.
+	inc     r0              ; Skip the ending zero.
+	tstb    (r0)            ; Check the next character after that.
+	bne     10$             ; Loop so long until double-zero encountered.
+	mov     (sp)+,r0        ; Pop original R0 back.
+	rts     pc
+;
+; Another notorious function which uses immediate string argument in
+; code space (another one is iwrite). Coded by AK of course.
+; Usage:
+;
+;       jsr     pc,istrequ
+;       .asciz  /string2/
+;       .even
+;
+; Or use macro COMPARE "string"  instead.
+;
+; R0 should contain pointer to string1. (To somewhere in inbuf in this
+; program). It is checked whether string1 starts with the string2
+; and is followed by proper delimiter character (ending zero, space or tab).
+; If it is, then new value of R0 is returned (pointing to that delim char),
+; and zero flag is set on.
+; But if strings differ, or string1 continues with some non-delimiter
+; character, then the original R0 (pointing still to beginning string1)
+; is returned, and zero flag is set off.
+; Corrupts R1 & R2 in both cases.
+;
+;
+istrequ:
+        mov     (sp),r1         ; Get saved PC from stack, i.e. start of str
+        mov     r0,-(sp)        ; Save the original R0.
+20$:    tstb    (r1)            ; Check if end zero in immediate argument.
+        beq     25$             ; Break in that case.
+	cmpb    (r0)+,(r1)+     ; Test if equal characters.
+	beq     20$             ; Loop back so long as they are equal.
+	mov     #1,r2           ; Set R2-flag on.
+22$:	tstb    (r1)+           ; Find the end of string1. (So that we can
+	bne     22$             ;  return safely).
+	br      27$
+25$:    clr     r2              ; If string1 finished first, then clear R2 flag
+        inc     r1              ; Increment R1 to point past that ending-zero.
+27$:    mov     r1,2(sp)        ; Put new return address back to stack.
+        bit     r1,#1           ; If it is odd...
+        beq     30$
+        inc     2(sp)           ; Then make return address even.
+30$: ; Test R2-flag, whether end-zero of string1 was encountered.
+        tst     r2              ; If end zero encountered
+	bne     40$             ; Nope, so we broke because of different chars.
+        jsr     pc,isdelimp     ; Test whether next (r0) is correct delimiter.
+	bne     40$             ; Nope, so string in R0 continues with smthng.
+        tst     (sp)+           ; But if matched, then drop the original R0.
+	sez                     ; And set zero flag to indicate success.
+	rts     pc              ; And return to new location after imm. string.
+40$: ; Didn't match. Return original R0 and false flag.
+        mov     (sp)+,r0        ; Restore the original R0 in that case.
+        clz                     ; And clear zero flag to indicate failure.
+        rts     pc
+;
+;
+skip$blankos:
+	cmpb    (r0),#32.       ; If blanko
+	beq     10$             ; then branch to 10$
+	cmpb    (r0),#9.        ; Check if tab
+	bne     20$             ; if not, then jump out of loop and return.
+10$:    inc     r0              ; Increment pointer
+	br      skip$blankos    ;  and loop back.
+20$:    rts     pc              ; Return.
+;
+convert$upper: ; Convert buffer beginning from (R0) to uppercase.
+	mov     r0,-(sp)        ; Save R0 to stack.
+	mov     r1,-(sp)        ; Save R1 to stack.
+10$:    movb    (r0),r1
+        cmpb    r1,#'a          ; if below 'a'
+	blo     20$             ;  then continue.
+	cmpb    r1,#'z          ; if above 'z'
+	bhi     20$             ;  then continue also.
+	sub     #32.,r1         ; Otherwise make letter uppercase.
+	movb    r1,(r0)         ; And put it back to buffer.
+20$:    tstb    (r0)+           ; Check whether ending zero and incr. pointer.
+	bne     10$             ; If not, then loop back.
+	mov     (sp)+,r1        ; Restore the original R1.
+	mov     (sp)+,r0        ; Restore the original R0.
+	rts     pc
+;
+;
+jumptable::
+	.WORD ERROR		; ^@  000
+	.WORD ERROR		; ^A  001
+	.WORD ERROR		; ^B  002
+	.WORD ERROR		; ^C  003
+	.WORD ERROR		; ^D  004
+	.WORD ERROR		; ^E  005
+	.WORD ERROR		; ^F  006
+	.WORD ERROR		; ^G  007
+	.WORD ERROR		; ^H  010
+	.WORD ERROR		; ^I  011
+	.WORD ERROR		; ^J  012
+	.WORD ERROR		; ^K  013
+	.WORD ERROR		; ^L  014
+	.WORD ERROR		; ^M  015
+	.WORD ERROR		; ^N  016
+	.WORD ERROR		; ^O  017
+	.WORD ERROR		; ^P  020
+	.WORD ERROR		; ^Q  021
+	.WORD ERROR		; ^R  022
+	.WORD ERROR		; ^S  023
+	.WORD ERROR		; ^T  024
+	.WORD ERROR		; ^U  025
+	.WORD ERROR		; ^V  026
+	.WORD ERROR		; ^W  027
+	.WORD ERROR		; ^X  030
+	.WORD ERROR		; ^Y  031
+	.WORD ERROR		; ^Z  032
+	.WORD ERROR		; ^[  033
+	.WORD ERROR		; ^\  034
+	.WORD ERROR		; ^]  035
+	.WORD ERROR		; ^^  036
+	.WORD ERROR		; ^_  037
+	.WORD ERROR		;     040
+	.WORD EXCLAM		; !   041
+	.WORD ERROR		; "   042
+	.WORD ERROR		; #   043
+	.WORD ERROR		; $   044
+	.WORD ERROR		; %   045
+	.WORD ERROR		; &   046
+	.WORD ERROR		; '   047
+	.WORD ERROR		; (   050
+	.WORD ERROR		; )   051
+	.WORD TIMES		; *   052
+	.WORD NUMBER		; +   053
+	.WORD NUMBER		; ,   054
+	.WORD NUMBER		; -   055
+	.WORD DOT		; .   056
+	.WORD DIVIDE		; /   057
+	.WORD DIG$0		; 0   060
+	.WORD DIG$1		; 1   061
+	.WORD DIG$2		; 2   062
+	.WORD NUMBER		; 3   063
+	.WORD NUMBER		; 4   064
+	.WORD NUMBER		; 5   065
+	.WORD NUMBER		; 6   066
+	.WORD NUMBER		; 7   067
+	.WORD NUMBER		; 8   070
+	.WORD NUMBER		; 9   071
+	.WORD ERROR		; :   072
+	.WORD SEMI$COLON        ; ;   073
+	.WORD LESS$THAN		; <   074
+	.WORD ERROR		; =   075
+	.WORD ERROR		; >   076
+	.WORD QUEST$MARK        ; ?   077
+	.WORD ERROR		; @   100
+	.WORD LET$A		; A   101
+	.WORD ERROR		; B   102
+	.WORD CLEAR		; C   103
+	.WORD LET$D		; D   104
+	.WORD ERROR		; E   105
+	.WORD ERROR		; F   106
+	.WORD ERROR		; G   107
+	.WORD ERROR		; H   110
+	.WORD LET$I		; I   111
+	.WORD ERROR		; J   112
+	.WORD ERROR		; K   113
+	.WORD ERROR		; L   114
+	.WORD LET$M		; M   115
+	.WORD LET$N		; N   116
+	.WORD LET$O		; O   117
+	.WORD ERROR		; P   120
+	.WORD ERROR		; Q   121
+	.WORD LET$R		; R   122
+	.WORD LET$S		; S   123
+	.WORD ERROR		; T   124
+	.WORD LET$U		; U   125
+	.WORD ERROR		; V   126
+	.WORD ERROR		; W   127
+	.WORD ERROR		; X   130
+	.WORD ERROR		; Y   131
+	.WORD ERROR		; Z   132
+	.WORD ERROR		; [   133
+	.WORD ERROR		; \   134
+	.WORD ERROR		; ]   135
+	.WORD ERROR		; ^   136
+	.WORD ERROR		; _   137
+	.WORD ERROR		; `   140
+	.WORD ERROR		; a   141
+	.WORD ERROR		; b   142
+	.WORD ERROR		; c   143
+	.WORD ERROR		; d   144
+	.WORD ERROR		; e   145
+	.WORD ERROR		; f   146
+	.WORD ERROR		; g   147
+	.WORD ERROR		; h   150
+	.WORD ERROR		; i   151
+	.WORD ERROR		; j   152
+	.WORD ERROR		; k   153
+	.WORD ERROR		; l   154
+	.WORD ERROR		; m   155
+	.WORD ERROR		; n   156
+	.WORD ERROR		; o   157
+	.WORD ERROR		; p   160
+	.WORD ERROR		; q   161
+	.WORD ERROR		; r   162
+	.WORD ERROR		; s   163
+	.WORD ERROR		; t   164
+	.WORD ERROR		; u   165
+	.WORD ERROR		; v   166
+	.WORD ERROR		; w   167
+	.WORD ERROR		; x   170
+	.WORD ERROR		; y   171
+	.WORD ERROR		; z   172
+	.WORD ERROR		; {   173
+	.WORD ERROR		; |   174
+	.WORD ERROR		; }   175
+	.WORD ERROR		; ~   176
+	.WORD ERROR		; DEL 177
+;
+;
+;
+	.end	start		; tell assembler end of code
+

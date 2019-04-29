@@ -1,0 +1,54 @@
+;
+; 345678901234567890123456789012345678901234567890123456789012345
+;
+	.MCALL	.PRINT,.REGDEF
+	.GLOBL	IWRITE,PUTS,STRLEN
+;
+; Calling sequence:
+;       call    iwrite
+;       .asciz  /Text/
+;       .even
+;
+; This generates error for some reason:
+;       .asciz  //
+;
+; Text following call is printed to terminal with CR+LF.
+;
+IWRITE::                        ; Immediate write by AK
+        MOV     (SP),R0         ; Get saved PC from stack, i.e. start of str
+	MOV     R0,R1           ; Copy it to R1 too.
+20$:    TSTB    (R1)+           ; Check if end zero
+        BNE     20$             ; Loop back if not
+        MOV     R1,(SP)         ; Put new return address back to stack
+        BIT     R1,#1           ; If it is odd...
+        BEQ     30$
+        INC     (SP)            ; Then make return address even.
+30$:
+        .PRINT                  ; Print zero terminated stuff from R0 onward.
+        RTS     PC              ; And return.
+;
+; Print string with CR+LF, beginning from R0 and ending to zero.
+; Return R0 back, and in R1 the length of string.
+;
+PUTS::
+        MOV     R0,-(SP)        ; Save the beginning of string.
+	.PRINT                  ; Print the string.
+	MOV     (SP),R0         ; Get the original beginning back from stack.
+	JSR     PC,STRLEN       ; Get the length to R0.
+	MOV     R0,R1           ; And move it to R1.
+	MOV     (SP)+,R0        ; And the original R0 back too.
+	RTS     PC              ; return.
+;
+;
+;
+STRLEN::                        ; Return length of string, beginning from R0
+        MOV     R0,-(SP)        ; Save the original beginning of buffer.
+10$:    TSTB    (R0)+           ; Test whether character pointed by R0 is zero
+        BNE     10$             ; Loop back if not.
+	DEC     R0              ; Sub 1 from R0, so that it points to that zero
+	SUB     (SP)+,R0        ; Subtract the beginning of buf to get length.
+        RTS     PC
+;
+;
+;
+       .END                     ; tell assembler end of code

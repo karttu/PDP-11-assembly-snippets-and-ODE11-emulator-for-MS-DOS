@@ -1,0 +1,28 @@
+Archive:  elukka-c.zip
+ Length  Method   Size  Ratio   Date    Time   CRC-32     Name
+ ------  ------   ----  -----   ----    ----   ------     ----
+    227  Defl:N     157  31%  02-22-92  12:54  c7210e1f   ECHO.C
+   1049  Defl:N     511  51%  02-22-92  12:54  88e10a47   MORE.C
+    310  Defl:N     196  37%  02-22-92  12:54  bacb2f06   VEBA.C
+   1198  Defl:N     626  48%  02-22-92  12:54  098603ad   ENT.C
+    408  Defl:N     246  40%  02-22-92  12:55  4b36d960   CONVSTRI.C
+    617  Defl:N     263  57%  02-22-92  12:55  2a7c26cf   PWTEST.C
+  14115  Defl:N    4899  65%  02-22-92  12:55  4641f84d   MAIL.C
+    107  Defl:N      93  13%  02-22-92  12:55  e86d4b79   UID.C
+   2036  Defl:N     855  58%  02-22-92  12:56  871d4026   COM.C
+    179  Defl:N     105  41%  02-22-92  12:56  eef3859f   KALA.C
+    432  Defl:N     282  35%  02-22-92  12:56  35c84403   HIBA.C
+   8320  Defl:N    3165  62%  02-22-92  12:56  29fb332c   USLOLD.C
+    345  Defl:N     219  37%  02-22-92  12:56  e4cba58a   KALA2.C
+   9801  Defl:N    3386  66%  02-22-92  12:57  39876b77   ENX.C
+   1573  Defl:N     582  63%  02-22-92  12:57  bcc1016e   SPLATCH.C
+   5639  Defl:N    2018  64%  02-22-92  12:57  65e8c742   WILDCARD.C
+  16376  Defl:N    5698  65%  02-22-92  12:58  096e2fa2   GETPWABR.C
+    360  Defl:N     212  41%  02-22-92  12:58  9b37e315   CONVSTR.C
+   3359  Defl:N    1263  62%  02-22-92  12:58  85f7fbd0   QUERY.C
+  15779  Defl:N    5455  65%  02-22-92  12:59  c4fe33ec   GETPWENT.C
+   2863  Defl:N    1114  61%  02-22-92  12:59  aafc9d8e   USL.C
+   4676  Defl:N    1541  67%  02-22-92  12:59  00d4c901   STRFUNS2.C
+   1573  Defl:N     718  54%  02-22-92  12:59  f3f685a0   USLDEBUG.C
+ ------          ------  ---                              -------
+  91342           33604  63%                              23     

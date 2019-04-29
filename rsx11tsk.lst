@@ -1,0 +1,34 @@
+Archive:  rsx11tsk.zip
+ Length  Method   Size  Ratio   Date    Time   CRC-32     Name
+ ------  ------   ----  -----   ----    ----   ------     ----
+  16896  Defl:N    8356  51%  02-23-92  00:15  7f0eeadf   CLR.TSK
+   2048  Defl:N     264  87%  02-23-92  00:15  b9b7b8f2   TESTI.TSK
+   2048  Defl:N     333  84%  02-23-92  00:15  2e58fbb9   NUMA.TSK
+  18432  Defl:N    8912  52%  02-23-92  00:16  92aa38b6   ECHO.TSK
+   2048  Defl:N     260  87%  02-23-92  00:16  e05210f5   TESTI2.TSK
+  16384  Defl:N    7767  53%  02-23-92  00:17  b4b90589   KOE.TSK
+   3584  Defl:N    1235  66%  02-23-92  00:17  823cc7a4   TURSKA.TSK
+  18432  Defl:N    8889  52%  02-23-92  00:18  015c3c47   VEBA.TSK
+   2048  Defl:N     170  92%  02-23-92  00:18  1206f87d   ESIM.TSK
+  24064  Defl:N   12509  48%  02-23-92  00:19  59b77309   ENT.TSK
+  20480  Defl:N   10402  49%  02-23-92  00:20  423afc84   MORE.TSK
+  23552  Defl:N   12050  49%  02-23-92  00:21  8937ec47   PWTEST.TSK
+   2560  Defl:N     535  79%  02-23-92  00:21  df1e88b9   NUMA2.TSK
+  18432  Defl:N    8920  52%  02-23-92  00:22  be178c3e   UID.TSK
+  18944  Defl:N    9536  50%  02-23-92  00:22  9bb6a92a   KALA.TSK
+   2560  Defl:N     601  77%  02-23-92  00:23  eb89e0fa   SHUIC.TSK
+  22528  Defl:N   11472  49%  02-23-92  00:24  10ec23c5   USLOLD.TSK
+  19456  Defl:N    9589  51%  02-23-92  00:24  aab08cff   HIBA.TSK
+   3072  Defl:N     785  74%  02-23-92  00:25  fabf8c69   MULTEST.TSK
+  20480  Defl:N   10360  49%  02-23-92  00:25  eb58ce52   KALA2.TSK
+   2048  Defl:N     353  83%  02-23-92  00:25  d2a49684   SPADE.TSK
+  23552  Defl:N   11956  49%  02-23-92  00:27  6bf3820b   ENX.TSK
+  21504  Defl:N   10855  50%  02-23-92  00:27  f48a07bd   QUERY.TSK
+  25600  Defl:N   13488  47%  02-23-92  00:29  c28b37f1   USL.TSK
+  19968  Defl:N    9915  50%  02-23-92  00:29  74904910   USLDEBUG.TSK
+   3072  Defl:N     846  73%  02-23-92  08:25  b8c78f31   MULTEST1.TSK
+   2154  Defl:N     898  58%  03-12-92  16:35  cecad594   OBO.MAP
+   6656  Defl:N    2486  63%  03-12-92  16:35  df4a865e   OBO.TSK
+   5532  Defl:N    2905  48%  03-12-92  16:36  69e8baa8   OBO.OBJ
+ ------          ------  ---                              -------
+ 368134          176647  52%                              29     

@@ -1,0 +1,36 @@
+	.MCALL	.TTYOUT
+	.GLOBL	INTOUT,ATOI
+;
+; 32-bit integer to be printed is in R0:R1, i.e. R0 is high word, and R1 low.
+; Division goes as:
+; ((R0 * 65536) + R1) / 10.  =
+; (R0 / 10.)*65536 + ((((R0 mod 10.)*65536)+R1) / 10.)
+;
+; DIV puts quotient to R0, and remainder to R1.
+;
+INTOUT:	MOV	#12,R2		; Set divisor to be ten.
+OUTINT:	CLR	R3		; Clear "high word of quotient".
+	CMP	R0,R2		; If high word is lower than ten,
+	BLO	EASDIV		;  then single DIV instruction works well.
+	MOV	R1,-(SP)	; Save low word to stack.
+	MOV	R0,R1		; Move high word to low word.
+	CLR	R0		; And clear high word.
+	DIV	R2,R0		; Now divide that high word by ten.
+	MOV	R0,R3		; Save quotient to R3
+	MOV	R1,R0		; and remainder to high word.
+	MOV	(SP)+,R1	; Restore the original low word from stack.
+EASDIV: DIV	R2,R0    ; Divide the (((high mod 10.)*65536) + low) by ten.
+	BNE	JATKA		; If quotient not zero yet.
+	TST	R3		; Test also high word of quotient.
+	BEQ	POISTU		; If that is zero too, then stop dividing.
+JATKA:	MOV	R1,-(SP)	; Save remainder to stack.
+	MOV	R0,R1		; Move quotient (R3:R0)
+	MOV	R3,R0	        ;  to R0:R1 and recurse
+	JSR	PC,OUTINT	;   back, using that as argument.
+	MOV	(SP)+,R1   ; When returning, pop remainders in opposite order.
+POISTU:	ADD	#60,R1		; Add '0' and
+	.TTYOUT	R1		;  print them.
+	RTS	PC		; Return.
+;
+;
+	.END

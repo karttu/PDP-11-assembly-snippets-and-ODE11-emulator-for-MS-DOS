@@ -1,0 +1,178 @@
+	.title	REGCOP  Self-copying/modifying program for ODE11.
+	.ident	/6.66/
+;
+;       New URL: http://www.iki.fi/~kartturi/pdp/REGCOP.MAC
+;
+;	Coded by N. Xnegghara 13-Oct-92.
+;
+;
+	.psect
+; We have SOB instruction, so comment this out:
+;	.macro	sob	reg,dst
+;	dec	reg
+;	bne	dst
+;	.endm	sob
+;
+        .even
+;
+; Note:
+;  R7 (i.e. PC) shouldn't be altered, for the obvious reason.
+;  However, in this ODE version we can safely alter R6 (SP), because
+;  stack and JSR, RTS instructions are not used at all.
+;  It's possible to permute R0 also in this ODE11 version, because we
+;  use no EMT instructions (macro calls to OS) at all.
+;  Neither we use MFPT or TSTSET instructions.
+;  If MARK instruction (0064NN) is used, then R5 shouldn't be altered.
+;  If ASHC, DIV or MUL instructions are used, then only
+;  R2 <-> R4 _and_ R3 <-> R5 swappings are possible. (Because they use
+;  register pairs, like R0 & R1 to store their products.)
+;
+; Permutation table for registers:
+; Rotate the registers R0-R6 one 'left', to get the cycle seven.
+; With arrangement like R1, R2, R0, R4, R5, R6, R3 we could get the
+; cycle twelve, which is maximum cycle with 7 elements. (3*4 = 12).
+; Register values are here given as part of EMT-instructions, i.e.
+; here they are included in EMT-instructions, (104000 + reg), so that
+; they will not be permuted.
+; However, if you want that they are also permuted, replace them with
+; CLR register (005000 + reg) instructions for example. (MOV R0,reg will
+; also work fine). However, use only instructions where low byte is
+; all zeros, except the register value. (i.e. TST 00570R won't work!)
+;
+BASEINSTR=104000 ; EMT, HALT (0) would also work.
+;
+; Register usage in this originating copy:
+; R0 instruction fetched from source copy.
+; R1 instruction length in words. (1, 2 or 3)
+; R2 register field fiddled out from R0.
+; R3 source pointer to old code.
+; R4 destination pointer to new code.
+; R5 temporary register used for keeping the "return address" when we
+;  branch to INCRLC "subroutine".
+; SP temporary save location for R0. (Note that this is available, as
+;  no stack is used.)
+;
+START:
+; Setup the R3 and R4 pointers:
+; (Note that we must copy this part too, because although R3 and R4 would
+; have the just right values for continuing from FINISH, the new code
+; won't use them anymore, but instead some permuted registers!)
+;
+        MOV     PC,R3
+	TST     -(R3)            ; Set src pointer to point to START.
+	MOV     R3,R4            ; Copy src pointer to dst pointer.
+        ADD     #FINISH-START,R4 ; Set dst pointer to point to FINISH.
+        BR      LOOP             ; Skip the register table.
+REGS:
+	.WORD   BASEINSTR+1
+	.WORD   BASEINSTR+2
+	.WORD   BASEINSTR+3
+	.WORD   BASEINSTR+4
+	.WORD   BASEINSTR+5
+	.WORD   BASEINSTR+6
+        .WORD   BASEINSTR+0
+	.WORD   BASEINSTR+7     ; R7 (PC) should be kept same.
+;
+;
+LOOP:
+        MOV     #1,R1           ; Initialize the instruction length count.
+	MOV     (R3)+,R0        ; Get instruction.
+; Examine what instruction code it might be:
+; Because we use no RTS, JMP, SWAB nor JSR instructions this will suffice:
+; (For more elaborate dispatching routine see the REGPER.MAC)
+	CMP     R0,#005000      ; 0050DD (CLR)
+	BLO     POIS
+	CMP     R0,#010000      ; 01SSDD (MOV) ?
+	BLO     DO$M1
+;	CMP     R0,#067777      ; 06SSDD (ADD) ? ; commented out
+;	BLOS    DO$M2 ; because DO$M2, DO$RM and DO$SOB are same label
+;	CMP     R0,#074777      ; 070RSS (MUL) - 074RDD (XOR) ?
+;	BLOS    DO$RM           ;
+;	CMP     R0,#075037      ; 07500R (FADD)-07503R (FDIV) ? (commented out)
+;	BLOS    DO$R1           ; We certainly don't need floating point stuff!
+;	CMP     R0,#077000      ; 077RJJ (SOB) ?
+;	BLO     POIS
+	CMP     R0,#077777
+	BLOS    DO$SOB
+	CMP     R0,#105000      ; 1050DD (CLRB)
+	BLO     POIS
+	CMP     R0,#110000      ; 11SSDD (MOVB) ?
+	BLO     DO$M1
+;	CMP     R0,#167777      ; 16SSDD (SUB) ?
+;	BLOS    DO$M2           ; We don't care about 17XXXX instructions...
+;
+; Do substitution to 2nd register field (bits 6-8)
+DO$SOB:
+DO$RM:
+DO$M2:
+        MOV     R0,SP           ; Save R0 temporarily to SP.
+        ASH     #-6,R0          ; Shift right 6 bits, 2nd reg field to bits 2-0
+        MOV     R0,R2           ; Get 2nd reg field to R2.
+	BIC     #^C7,R2         ; Clear all other bits (than 2-0).
+; We don't need to check for JSR, because INCRLC will think that
+; 4 of 004RDD is mode -(Rn) and will do nothing for that.
+	CMP     SP,#070000      ; Check that it is not 070000-077777 MUL-SOB
+	BGE     NOPE            ; Use signed comparison so that 110000 < 070000
+	MOV     #NOPE-RETPNT,R5 ; When ADD R5,PC in the end of INCRLC is
+	BR      INCRLC          ; executed, we will return to NOPE:
+NOPE:
+	ASL     R2              ; Multiply R2 by 2 because REGS is word table.
+        ADD     PC,R2           ; Do this in PIC way.
+	MOVB    REGS-.(R2),R2   ; Get new reg. (high byte is sxt'ed to be zero)
+	ASH     #6,R2           ; Shift lexft six bits.
+; If no EIS, then use the following three instructions:
+;	SWAB    R2              ; And shift left six times, i.e. first shift
+;	ASR     R2              ;  eight bits left by swapping the byte halves,
+;	ASR     R2              ;   and then shift two bits right.
+        MOV     SP,R0           ; Get the original instruction code back to R0
+	BIC     #700,R0         ; Clear bits 6-8 of instruction code.
+	BIS     R2,R0           ; Or new register to that place (bits 6-8).
+	CMP     R0,#077000      ; Check whether instr. is 077000-077777 (SOB)?
+	BGE     POIS            ; If it is, then do nothing for six bit
+; displacement in bits 5-0 of SOB instruction, i.e. skip the INCRLC & rest:
+DO$M1:
+DO$R1: ; This label moved here because only instruction using this is
+; RTS Rn, which is 00020R, so INCRLC will think that addressing mode is 0,
+; so nothing is done for that.
+        MOV     R0,R2           ; Copy the instruction code from R0 to R2.
+	BIC     #^C7,R2         ; Now R2 contains the three lowest bits,
+;                                  (i.e. usually a register field)
+        CLR     R5              ; Continue from RETPNT.
+;
+; Increment R1 by one if it's necessary. I.e. if addressing mode is
+; 27 (immediate) or 37 (absolute) or 6R or 7R.
+; R0 should contain the addressing mode in bits 2-0 (three lowermost),
+;  and R2 only the register field.
+;
+INCRLC:
+	BIT     #20,R0          ; Check that mode is either 2, 3, 6 or 7.
+	BEQ     73$
+        CMP     R2,#7           ; If register is 7 (PC)
+	BEQ     72$             ;  then it is 27, 37, 67 or 77.
+	BIT     #40,R0          ; Check whether mode is 6 or 7?
+	BEQ     73$             ; If not, then don't do it.
+72$:
+        INC     R1              ; Increment count of additional words.
+73$:
+        ADD     R5,PC           ; Jump or return somewhere.
+RETPNT:
+;
+	BIC     #7,R0           ; Clear the three lowest bits of instr. code
+        ASL     R2              ; Shift R2 one left because REGS is word table
+        ADD     PC,R2           ; Do this in PIC way.
+        BISB    REGS-.(R2),R0   ; R0 contains now new instr. code.
+        BR      POIS
+;
+; If R1 is >1, then copy those additional arg words in this little loop:
+LOOP2:	MOV     (R3)+,R0        ; Get additional argument word.
+POIS:   MOV     R0,(R4)+        ; Store possible modified instr. code to dst.
+        SOB     R1,LOOP2        ; Decrement R1 and Loop back if it is non-zero.
+	CMP     R3,PC           ; Is source pointer pointing to BLOS?
+	BLOS    LOOP            ; Loop until everything copied.
+;
+FINISH:
+; When everything is copied, the new copy of code should be from this
+; location onward. PC and R3 will be pointing to here (FINISH), and R4
+; will be pointing to next location after new copy.
+;
+	.end	START

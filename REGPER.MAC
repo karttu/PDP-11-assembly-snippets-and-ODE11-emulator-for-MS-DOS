@@ -1,0 +1,380 @@
+	.title	regper Permute registers used in code of .SAV file.
+	.ident	/6.66/
+;
+;       New URL: http://www.iki.fi/~kartturi/pdp/REGPER.MAC
+;
+;	Coded by N. Xnegghara 4-Oct-92.
+;
+;       getw, putw & close routines ripped off/modified from k11hex
+;       program by Brian Nelson (which comes with kermit packet for RT-11)
+;
+;       I don't take any responsibility for this program nor its
+;       possible deleterious effects.
+;       Neither I take any responsibility for the possible malignant
+;       purposes this kind of algorithm could be used for.
+;       I only wanted to check whether it works.
+;
+;	Usage:	run perreg
+;		*regpe2=regper
+;
+        .mcall  ...cm1, ...cm2, ...cm3, ...cm4
+	.mcall	.close, .csigen, .exit, .readw, .writw, .print
+;
+	.psect
+; We have SOB instruction, so comment this out:
+;	.macro	sob	reg	,dst
+;	dec	reg
+;	bne	dst
+;	.endm	sob
+;
+        .even
+;
+; Note:
+;  R6 & R7 (i.e. SP & PC) shouldn't be altered, for the obvious reasons.
+;  R0 shouldn't be altered because macro calls to RT-11 (which use EMT
+;  instruction) usually assume that R0 keeps some argument.
+;  (TSTSET instruction, which is probably very rare, also thinks that
+;  R0 should contain something.)
+;  If MARK instruction (0064NN) is used, then R5 shouldn't be altered.
+;  If ASHC, DIV or MUL instructions are used, then only
+;  R2 <-> R4 _and_ R3 <-> R5 swappings are possible. (Because they use
+;  register pairs, like R0 & R1 to store their products.)
+;
+;  It is not guaranteed that this simpleminded program can always
+;  tell which stuff is code and which is data. For instance with
+;  calls to subroutines which expect some arguments/data after the
+;  call.
+;  Currently this assumes that code begins from the address given in
+;  location 40, and continues to the first HALT instruction (zero)
+;  encountered, and everything else is handled as data, i.e. not
+;  altered.
+;  At least this program can correctly selfmodify itself.
+;
+; Permutation table for registers:
+; Rotate the register R1-R5 one 'left', to get the cycle five.
+; With arrangement like R2, R1, R4, R5, R3 we could get the cycle six
+; (max cycle with 5 elements).
+REGS:
+        .byte   0               ; R0 should be kept same.
+	.byte   2
+	.byte   3
+	.byte   4
+	.byte   5
+	.byte   1
+	.byte   6               ; R6 (SP) should be kept same.
+	.byte   7               ; R7 (PC) should be kept same.
+;
+        .even
+begpnt: .word   0
+endpnt: .word   0
+rtwork:	.blkw	10
+inblk:	.word	0
+outblk:	.word	0
+inpnt:	.word	0
+outpnt:	.word	0
+inbuff:	.blkw	400
+outbuf:	.blkw	400
+;
+	.enabl	lc
+wrerr:	.asciz  /Write error on device/
+rderr:	.ascii  /Empty file, premature EOF or read error? LC=/
+rderlc: .asciz  /??????/
+alldone: .ascii /All done. Permuted code from /
+all1oct: .ascii /??????/
+allspc:  .ascii / to /
+all2oct: .asciz /??????/
+          .even
+; Index this table with bits 9-11 of instruction, multiplied with 4:
+; (Must be at even boundary!)
+opcodes: .ascii /MUL /          ; 070RSS
+         .ascii /DIV /          ; 071RSS
+	 .ascii /ASH /          ; 072RSS
+	 .ascii /ASHC/          ; 073RSS
+	 .ascii /XOR /          ; 074RDD
+	 .ascii /????/          ; XX5XXX
+	 .ascii /MARK/          ; 0064NN
+opcodmsg: .ascii /??????: / ; Should be even number of bytes...
+opco1msg: .ascii /XXXX instruction encountered: / ; Should be on even boundary!
+opco2msg: .asciz /??????/
+csibad:	.asciz  /Couldn't open the files on the command line/
+	.even
+defext:	.rad50  /SAV/
+	.rad50  /SAVSAVSAV/
+;
+START:  .csigen #handld,#defext,#0      ; get a command
+	bcc	5$			; ok
+	.print	#csibad			; no good
+	.exit
+;
+5$:
+	clr     r4              ; Use R4 as location counter. (Set it to zero)
+	mov	#77777,inpnt    ; Ensure first getw call gets a block
+        jsr     pc,getw         ; Read the first block & word.
+	bcs     80$             ; Read error?
+	mov     inbuff+40,r5    ; Get beginning of code to R5.
+	mov     r5,begpnt       ; Save it also to begpnt.
+10$:    cmp     r4,r5           ; If LC still below code beginning?
+        blo     30$             ; Then skip the next section.
+        tst     r0              ; Is R0 zero, i.e. HALT?
+	bne     20$
+	mov     #177777,r5      ; Then put 177777 to R5, so that cmp r4,r5
+; results _always_ blo after this, and this part is skipped.
+        mov     r4,endpnt       ; And save this location to endpnt.
+20$:    clr     r3              ; Clear this one.
+        jsr     pc,getnew       ; Do the register substitutions to instr.
+	tst     r3              ; If instr. has additional words (args) ?
+	beq     30$             ; Nope, skip the following little loop.
+; Then read and output them in this little loop:
+22$:
+	jsr     pc,putw	        ; Write the word in R0 out
+	add     #2,r4           ; Increment LC by two.
+	jsr     pc,getw         ; Get next one.
+	bcs     80$             ; If EOF or read error?
+	sob     r3,22$
+30$:
+	jsr     pc,putw	        ; Write the word in R0 out
+	add     #2,r4           ; Increment LC by two.
+        jsr     pc,getw         ; Get next word from input to R0.
+        bcc     10$             ; Loop back if not EOF (or read error?)
+; Otherwise close all and exit:
+	jsr     pc,close        ; close up and exit
+	br	100$		; bye
+;
+80$:    mov     r4,r0           ; Convert R4 (LC) in octal to
+        mov     #rderlc,r1      ;  rderlc buffer...
+	jsr     pc,itoo
+	.print	#rderr		; Print read error message.
+	br	110$		;
+;
+100$:
+        mov     begpnt,r0       ; Convert beginning point
+	mov     #all1oct,r1     ;  to buffer beginning from all1oct...
+	jsr     pc,itoo
+	movb    #32.,allspc     ; Restore blank which itoo overwrote with zero.
+        mov     endpnt,r0       ; Convert ending point
+	mov     #all2oct,r1     ;  to buffer beginning from all2oct...
+	jsr     pc,itoo
+	.print	#alldone        ; Print the whole buffer out.
+110$:	.exit
+;
+; Print the warning message that we encountered this kind of instruction.
+; (I.e. MARK or one of the EIS instructions which we don't have in PDT-11/150)
+; Note that this part is not essential for the functioning of REGPER,
+; but it can give the valuable information whether the program to be
+; permuted will work correctly after the permutation operation.
+do$special:
+        mov     r0,-(sp)        ; Save the R0 (contains instruction code).
+        mov     #opco2msg,r1    ; Convert it into opcodmsg buffer
+	jsr     pc,itoo         ;  with itoo
+	bic     #^C007000,r0    ; Get bits 11-9 of instr. code.
+	swab    r0              ; Swap the byte halves, now in bits 3-1.
+	asl     r0              ; Shift left once, so now we have proper index.
+	add     #opcodes,r0     ; Add base of opcodes, so we have the pointer.
+	mov     (r0)+,opco1msg  ; Copy the opcode name from that table,
+	mov     (r0),opco1msg+2 ; third & fourth byte also.
+	mov     r4,r0           ; Then convert location counter (R4)
+	mov     #opcodmsg,r1    ;  to there too.
+	jsr     pc,itoo
+	movb    #':,opcodmsg+6  ; Restore colon which itoo overwrote with 0.
+	.print  #opcodmsg       ; And print out the whole message.
+	mov     (sp)+,r0        ; Pop original R0 from stack.
+	cmp     r0,#070000      ; If instr. 070RSS (MUL) - 074RDD (XOR) ?
+	bhis    do$rm           ; Then do the register substitutions.
+	rts     pc              ; Return with R0 intact if it was MARK.
+;
+; R0 should contain instruction code, which is replaced by new
+;  substitution.
+; R3 is incremented by 1 or 2 depending how many arguments instruction has.
+; (i.e. additional words)
+; R2 is used.
+;
+getnew:
+;
+        MOV     R0,R2           ; Copy the instruction code from R0 to R2.
+	BIC     #^C7,R2         ; Now R2 contains the three lowest bits,
+;                                  (i.e. usually a register field)
+        CMP     R0,#000100      ; If HALT - MFPT then 
+	BLO     pois            ;  do no substitutions. (BLO = Branch if LOwer)
+	CMP     R0,#000177      ; 0001DD JMP ?
+	BLOS    do$m1           ; (BLOS = Branch if LOwer or Same)
+        CMP     R0,#000207      ; 00020R RTS ?
+	BLOS    do$r1
+	CMP     R0,#000300      ; SPL, NOP, CLC, SEN, SCC, etc ?
+	BLO     pois
+	CMP     R0,#000377      ; 0003DD SWAB ?
+	BLOS    do$m1
+	CMP     R0,#004000      ; Branches BR - BLE ?
+	BLO     pois
+	CMP     R0,#004777      ; 004RDD JSR ?
+	BLOS    do$rm
+	CMP     R0,#006377      ; 0050DD (CLR) - 0063DD (ASL) ?
+	BLOS    do$m1
+	CMP     R0,#006500      ; 0065DD (MFPI) ?
+	BLO     do$special      ; (0064NN = MARK) (Could be BLO pois  also)
+	CMP     R0,#007277      ; 0072DD (TSTSET) ?
+	BLOS    do$m1           ; (I don't know whether 0071XX is anything...)
+	CMP     R0,#010000      ; 01SSDD (MOV) ?
+	BLO     pois
+	CMP     R0,#067777      ; 06SSDD (ADD) ?
+	BLOS    do$m2
+	CMP     R0,#074777      ; 070RSS (MUL) - 074RDD (XOR) ?
+	BLOS    do$special      ; Could be BLOS do$rm if no fancy stuff needed.
+	CMP     R0,#075037      ; 07500R (FADD) - 07503R (FDIV) ?
+	BLOS    do$r1
+	CMP     R0,#077000      ; 077RJJ (SOB) ?
+	BLO     pois
+	CMP     R0,#077777
+	BLOS    do$sob
+	CMP     R0,#105000      ; 1050DD (CLRB)
+	BLO     pois
+	CMP     R0,#106777      ; 1067DD (MFPS) ?
+	BLOS    do$m1
+	CMP     R0,#110000      ; 11SSDD (MOVB) ?
+	BLO     pois
+	CMP     R0,#167777      ; 16SSDD (SUB) ?
+	BLOS    do$m2
+pois:
+	RTS     PC
+;
+;
+do$sob:
+do$rm:
+do$m2:
+	MOV     R2,-(SP)        ; Save orig. register field (bits 2-0)
+        MOV     R0,-(SP)        ; & the original instr. code.
+	MOV     #6,R2           ; Shift R0 right six bits in this little loop:
+17$:	ASR     R0              ;  We have no EIS in PDT-11/150 so can't use
+	SOB     R2,17$          ;   instruction ASH #-6,R0
+        MOV     R0,R2
+	BIC     #^C7,R2         ; Get second register field (bits 6-8)
+; Actually, this code is not needed, because incrlc will think that
+; 4 of 004RDD is mode -(Rn) and will do nothing for that:
+;	BIT     #^C77,R0        ; Check whether R0 is (004RDD >> 6) (JSR)
+;	BEQ     nope            ; Then there's no real second adr mode field.
+	CMP     (SP),#070000    ; Check that it is not 070000-077777 MUL-SOB
+	BGE     nope            ; Use signed comparison so that 110000 < 070000
+        JSR     PC,incrlc       ; If real two adr. mode instr. (MOV[B] - ADD)
+nope:
+	MOVB    REGS(R2),R2     ; Get new reg. (high byte is sxt'ed to be zero)
+	SWAB    R2              ; And shift left six times, i.e. first shift
+	ASR     R2              ;  eight bits left by swapping the byte halves,
+	ASR     R2              ;   and then shift two bits right.
+        MOV     (SP)+,R0        ; Restore the original instr. code.
+	BIC     #700,R0         ; Clear bits 6-8
+	BIS     R2,R0           ; Or new register to that place (bits 6-8).
+	MOV     (SP)+,R2        ; Restore the original reg field (bits 2-0).
+	CMP     R0,#077000      ; Check whether instr. is 077000-077777 (SOB)?
+	BGE     pois2           ; If it is, then do nothing for six bit
+; displacement in bits 5-0 of SOB instruction, i.e. skip the incrlc & rest:
+do$m1:
+        JSR     PC,incrlc
+;
+do$r1:
+	BIC     #7,R0           ; Clear the three lowest bits of instr. code
+        BISB    REGS(R2),R0     ; R0 contains now new instr. code.
+pois2:
+	RTS     PC
+;
+;
+; Increment R3 by one if it's necessary. I.e. if addressing mode is
+;  27 (immediate) or 37 (absolute) or 6R or 7R.
+; R0 should contain the addressing mode, and R2 the register field only.
+;
+incrlc:
+	BIT     #20,R0          ; Check that mode is either 2, 3, 6 or 7.
+	BEQ     73$
+        CMP     R2,#7           ; If register is 7 (PC)
+	BEQ     72$             ;  then it is 27, 37, 67 or 77.
+	BIT     #40,R0          ; Check whether mode is 6 or 7?
+	BEQ     73$             ; If not, then don't do it.
+72$:
+        INC     R3              ; Increment additional word count by 1.
+73$:
+        RTS     PC
+;
+;
+; Convert number in R0 to octal, storing (always) 6 digits to buffer
+; beginning from R1. R1 is returned pointing to next character after
+; the digits. (Original value + 6).
+; Results can vary from 000000 to 177777.
+; Digits are generated in reverse order, from right to left.
+;
+itoo::
+        MOV     R0,-(SP)        ; Save R0, R2, R3 & R4.
+        MOV     R2,-(SP)
+	MOV     R3,-(SP)
+	MOV     R4,-(SP)
+        MOV     R1,R4           ; Internally, use R4 as digit pointer.
+        MOV     #6,R3           ; Set the digit count.
+	ADD     R3,R4           ; And set R4 to point the last digit + 1.
+10$:
+        MOV     R0,R2           ; Get copy of R0
+	BIC     #^C7,R2         ; Get the lowest octal digit.
+	ADD     #'0,R2          ; Add 060 to get the ascii digit.
+	MOVB    R2,-(R4)        ; Store it to destination area.
+        CLC                     ; Shift R0 three times right, _logically_.
+	ROR     R0
+        CLC
+	ROR     R0
+        CLC
+	ROR     R0
+	SOB     R3,10$          ; Loop until digit count zero.
+        MOV     R4,R1           ; Set R1 to point
+	ADD     #6,R1           ; to first character after digits.
+	CLRB    (R1)            ; And put ending zero.
+	MOV     (SP)+,R4        ; Restore R4, R3 & R2.
+	MOV     (SP)+,R3
+	MOV     (SP)+,R2
+	MOV     (SP)+,R0
+	RTS     PC
+;
+;
+getw:	cmp	inpnt,#1000             ; If still stuff in input buffer?
+	blo	10$
+	clr	inpnt			; clear the buffer offset also
+	.readw	#rtwork,#3,#inbuff,#400,inblk ; Read one block more.
+	bcs	100$			; end of file
+	inc	inblk			; next time the next block please
+10$:	mov	inpnt,r0		; get the current buffer offset
+	add     #2,inpnt                ; + 2
+	mov	inbuff(r0),r0		; and return the word.
+	clc				; success
+100$:	rts     pc			; exit with success in 'c' bit
+;
+putw:	cmp	outpnt,#1000		; If still room for more output data
+	blo	10$                     ;  in output buffer?
+; If not, then write the old buffer and 'clear' it:
+	clr	outpnt			; clear the buffer offset also
+	mov	r0,-(sp)		; save the word being put
+	.writw	#rtwork,#0,#outbuff,#400,outblk ; Write the old buffer.
+	mov	(sp)+,r0		; restore that word please
+	bcs	70$			; write error?
+	inc	outblk			; next time the next block please
+10$:	mov	outpnt,r1		; get the current buffer offset
+	add	#2,outpnt	        ; + 2
+	mov	r0,outbuff(r1)	        ; and store the word to output buffer.
+	clc				; success
+	rts     pc			; exit with success in 'c' bit
+70$:	.print	#wrerr			; write error
+	.exit
+;
+close:	tst	outpnt			; anything to dump out
+	beq	20$			; no, should not be
+	mov	outblk,r2		; save current output block #
+10$:	cmp	r2,outblk		; did it dump it's buffer?
+	bne	20$			; yes
+	clr	r0			; yes, dump a bunch of nulls out
+	jsr     pc,putw			; until putw clears the pointer
+	br	10$
+20$:	.close	#0			; close the two files now
+	.close	#3			; input also please
+	rts     pc
+;
+;
+; Ensure that code ends with HALT (0) so that we can detect it:
+        HALT
+;
+;
+handld:	.blkw	500
+;
+	.end	START

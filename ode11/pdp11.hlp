@@ -1,0 +1,115 @@
+
+  Addressing modes:
+
+Mode
+
+0   Register                Rn      Operand is in Rn.
+
+1   Register deferred       (Rn)    Address of operand is in Rn.
+
+2   Autoincrement           (Rn)+   Address of operand is in Rn; Rn = Rn + 2
+     after operand is fetched. (But Rn = Rn + 1 if byte-instr. and n < 6).
+
+3   Autoincrement deferred  @(Rn)+  Address of address of operand is in Rn;
+				     Rn = Rn + 2 after operand is fetched.
+
+4   Autodecrement           -(Rn)   Rn = Rn - 2 before address is computed.
+     (But Rn = Rn - 1 if byte-instr. and n < 6). Address of operand is in Rn.
+
+5   Autodecrement deferred  @-(Rn)  Rn = Rn - 2 before address is computed;
+                                     address of address of operand is in Rn.
+
+6   Index		    X(Rn)   Address of operand is X plus Rn.
+     Address of X is in PC; PC = PC + 2 after X is fetched.
+
+7   Index deferred	    @X(Rn)  Address of address of operand is X + Rn.
+     Address of X is in PC; PC = PC + 2 after X is fetched.
+
+  PC addressing
+
+27  Immediate               #k      Operand is k. (k follows instruction).
+
+37  Absolute		    @#A     Address of operand is A. (A follows
+                                     instruction).
+
+67  Relative                A       Address of operand is A. (A - PC follows
+                                     instruction).
+
+77  Relative deferred       @A      Address of address of operand is A.
+                                     (A - PC follows instruction).
+
+
+  Double-operand instructions:
+
+Op Code Mnemonic        Instruction		  Operation           N Z V C
+.1SSDD	MOV[B]	s,d	Move			  d <- s              ? ? 0 -
+.2SSDD	CMP[B]	s,d	Compare			  Form  s - d         ? ? ? ?
+.3SSDD	BIT[B]	s,d	Bit test		  Form  s AND d       ? ? 0 -
+.4SSDD	BIC[B]	s,d	Bit clear (AND NOT)	  d <- ~s AND d       ? ? 0 -
+.5SSDD	BIS[B]	s,d	Bit set (OR)		  d <- s OR D         ? ? 0 -
+06SSDD	ADD	s,d	Add			  d <- s + d          ? ? ? ?
+16SSDD	SUB	s,d	Subtract		  d <- d - s          ? ? ? ?
+
+
+  Other double-operand instructions:
+004RDD	JSR	Rn,d	Jump to subroutine
+070RSS	MUL	s,Rn	Multiply (signed)	  Rn <- Rn * s        ? ? 0 ?
+071RSS	DIV	s,Rn	Divide (signed)		                      ? ? ? ?
+072RSS	ASH	s,Rn	Arithmetic shift          Rn <<= s            ? ? ? ?
+073RSS	ASHC	s,Rn	Arithmetic shift combined Rn,Rn+1 <<= s       ? ? ? ?
+074RDD	XOR	Rn,d	Exclusive or              d <- Rn XOR d       ? ? 0 -
+077RNN	SOB	Rn,a	Subtract one and branch
+
+ 
+  Single-operand instructions:
+ 
+Op Code Mnemonic        Instruction		  Operation           N Z V C
+0001DD	JMP
+0003DD  SWAB    d       Swap bytes		  d_low <-> d_high    ? ? 0 0
+.050DD	CLR[B]  d       Clear			  d <- 0	      0 1 0 0
+.051DD	COM[B]  d       Complement                d <- ~d	      ? ? 0 1
+.052DD	INC[B]  d	Increment		  d <- d + 1          ? ? ? -
+.053DD	DEC[B]  d	Decrement		  d <- d - 1          ? ? ? -
+.054DD	NEG[B]  d	Negate			  d <- -d	      ? ? ? ?
+.055DD	ADC[B]  d	Add carry		  d <- d + C	      ? ? ? ?
+.056DD	SBC[B]  d	Subtract carry		  d <- d - C	      ? ? ? ?
+.057SS	TST[B]  s	Test			  d <- d	      ? ? 0 0
+.060DD	ROR[B]  d	Rotate right		  C --> d --> C       ? ? ? ?
+.061DD	ROL[B]  d	Rotate left		  C <-- d <-- C       ? ? ? ?
+.062DD	ASR[B]  d	Arithmetic shift right    d <- d / 2          ? ? ? ?
+.063DD	ASL[B]  d	Arithmetic shift left	  d <- 2 * d          ? ? ? ?
+0064NN	MARK    n
+0065DD	MFPI    d
+0066DD	MTPI    d
+0067DD	SXT     d	Sign extend		  d <- -1 * N         - ? 0 -
+0070DD	CSM     d
+1064SS	MTPS    s
+1065DD	MFPD    d
+1066DD	MTPD    d
+1067DD	MFPS    d
+ 
+ 
+  Branches:
+
+Op Code Mnemonic    Condition                         (PC) <- a if
+000400	BR	a   unconditionally                   (Unconditionally)
+001000	BNE	a   if not equal (not zero)           Z = 0
+001400	BEQ	a   if equal (zero)                   Z = 1
+002000	BGE	a   if greater or equal               (N xor V) = 0
+002400	BLT	a   if less than                      (N xor V) = 1
+003000	BGT	a   if greater than                   (Z or (N xor V)) = 0
+003400	BLE	a   if less than or equal	      (Z or (N xor V)) = 1
+100000	BPL	a   if plus (positive)                N = 0
+100400	BMI	a   if minus (negative)               N = 1
+101000	BHI	a   if higher                         (C or Z) = 0
+101400	BLOS	a   if lower or same                  (C or Z) = 1
+102000	BVC	a   if overflow clear                 V = 0
+102400	BVS	a   if overflow set                   V = 1
+103000	BCC	a   if carry clear (Synonym: BHIS)    C = 0
+103400	BCS	a   if carry set (Synonym: BLO)       C = 1
+103000  BHIS    a   if higher or same (Synonym: BCC)  C = 0
+103400  BLO     a   if lower (Synonym: BCS)           C = 1
+
+ Displacement is in low byte of Op Code. It is sign-extended, multiplied by 2
+  and added to PC to produce the destination address.
+ 

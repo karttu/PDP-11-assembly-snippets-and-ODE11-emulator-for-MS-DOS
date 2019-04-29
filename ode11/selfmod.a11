@@ -1,0 +1,45 @@
+CMP src,#004777
+BLOS pois
+CMP src,#006400
+BLO handle_reg1
+CMP src,#007777
+BLOS pois
+CMP src,#076777
+BLOS handle_both
+CMP src,#100000
+BLO handle_reg2
+CMP src,#104777
+BLOS pois
+CMP src,#106400
+BLO handle_reg1
+CMP src,#107777
+BLOS pois
+CMP src,#170000
+BHIS pois
+
+handle_reg1
+handle_reg2
+handle_both
+
+
+
+MOV src,R0
+BIC ~7,R0
+CMP R0,#5
+BHI pois
+BEQ juusto
+INC src
+BR jotain
+juusto: BIC #7,src
+jotain:
+
+MOV src,R0
+BIC ~700,R0
+CMP R0,#500
+BHI pois
+BEQ juusto
+ADD #100,src
+BR jotain
+juusto: BIC #700,src
+jotain:
+

@@ -1,0 +1,162 @@
+MFPT O.  ; Get the processor model code (low byte) & subcode (high byte).
+127 258 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 32766
+151 217 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 32767
+128 256 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 32768
+99  331 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 32769
+113 290 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 32770
+255 257 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 65535
+256 256 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 65536
+198 331 *D .S 2DUP O. O. 2DUP D. UD. .F  ; 65538
+-127 258 *D .S 2DUP O. O. 2DUP D. UD. .F
+-151 217 *D .S 2DUP O. O. 2DUP D. UD. .F
+-128 256 *D .S 2DUP O. O. 2DUP D. UD. .F
+-99  331 *D .S 2DUP O. O. 2DUP D. UD. .F
+-113 290 *D .S 2DUP O. O. 2DUP D. UD. .F
+-255 257 *D .S 2DUP O. O. 2DUP D. UD. .F
+-256 256 *D .S 2DUP O. O. 2DUP D. UD. .F
+-198 331 *D .S 2DUP O. O. 2DUP D. UD. .F
+ 1   1   *D .S 2DUP O. O. 2DUP D. UD. .F
+-1   1   *D .S 2DUP O. O. 2DUP D. UD. .F
+-1   0   *D .S 2DUP O. O. 2DUP D. UD. .F
+ 32767  32767 *D .S 2DUP O. O. 2DUP D. UD. .F ;  1,073,676,289
+-32767  32767 *D .S 2DUP O. O. 2DUP D. UD. .F
+ 32767  32768 *D .S 2DUP O. O. 2DUP D. UD. .F ; -1,073,709,056
+-32767  32768 *D .S 2DUP O. O. 2DUP D. UD. .F
+ 32768  32768 *D .S 2DUP O. O. 2DUP D. UD. .F ;  1,073,741,824
+127 258 * .S DUP O. DUP . U. .F
+151 217 * .S DUP O. DUP . U. .F
+128 256 * .S DUP O. DUP . U. .F
+99  331 * .S DUP O. DUP . U. .F
+113 290 * .S DUP O. DUP . U. .F
+255 257 * .S DUP O. DUP . U. .F
+256 256 * .S DUP O. DUP . U. .F
+198 331 * .S DUP O. DUP . U. .F
+-127 258 * .S DUP O. DUP . U. .F
+-151 217 * .S DUP O. DUP . U. .F
+-128 256 * .S DUP O. DUP . U. .F
+-99  331 * .S DUP O. DUP . U. .F
+-113 290 * .S DUP O. DUP . U. .F
+-255 257 * .S DUP O. DUP . U. .F
+-256 256 * .S DUP O. DUP . U. .F
+-198 331 * .S DUP O. DUP . U. .F
+ 1   1   * .S DUP O. DUP . U. .F
+-1   1   * .S DUP O. DUP . U. .F
+-1   0   * .S DUP O. DUP . U. .F
+ 32767  32767 * .S DUP O. DUP . U. .F
+-32767  32767 * .S DUP O. DUP . U. .F
+ 32767  32768 * .S DUP O. DUP . U. .F
+-32767  32768 * .S DUP O. DUP . U. .F
+ 32768  32768 * .S DUP O. DUP . U. .F
+; Let's test DIV instruction:
+; Divide by zero:
+6,6,6 0   M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+,0   0   M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+,0   666 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+6,6,6 -1 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+6,6,6 -2 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+6,6,6 -3 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+6,6,8 -3 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+;
+327,668 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,669 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,670 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,671 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,672 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,673 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,674 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,675 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,676 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,677 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,678 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,679 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,680 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,681 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,682 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,683 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,684 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,685 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,686 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,687 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,688 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,689 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,690 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,691 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+;
+-327,668 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,669 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,670 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,671 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,672 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,673 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,674 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,675 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,676 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,677 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,678 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,679 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,680 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,681 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,682 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,683 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,684 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,685 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,686 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,687 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,688 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,689 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,690 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,691 10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+;
+-327,668 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,669 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,670 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,671 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,672 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,673 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,674 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,675 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,676 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,677 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,678 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,679 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,680 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,681 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,682 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,683 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,684 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,685 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,686 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,687 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,688 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,689 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,690 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+-327,691 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+;
+327,668 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,669 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,670 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,671 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,672 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,673 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,674 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,675 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,676 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,677 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,678 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,679 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,680 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,681 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,682 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,683 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,684 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,685 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,686 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,687 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,688 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,689 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,690 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+327,691 -10 M/MOD .S 2DUP O. O. 2DUP U. U. . . .F
+;
+1
+1 ASH DUP O. DUP U. .F DUP <- 1 ASH DUP O. U. .F
+ 

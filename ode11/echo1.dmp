@@ -1,0 +1,15 @@
+001000: 105737  TSTB    @#177560    ; Test whether character ready on keyboard?
+001002: 177560  ; 177560 = Console's keyboard status register
+001004: 100375  BPL     001000      ; Loop until ready-bit (bit-7) comes ready.
+001006: 113700  MOVB    @#177562,R0 ; Get character to R0.
+001010: 177562  ; 177562 = Console's keyboard data register
+001012: 005200  INC     R0          ; Increment it by one (INCB would work too)
+001014: 105737  TSTB    @#177564    ; Test whether printer is ready for output?
+001016: 177564  ; 177564 = Console's printer status register
+001020: 100375  BPL     001014      ; Loop until ready-bit (bit-7) comes ready.
+001022: 110037  MOVB    R0,@#177566 ; Output character to printer.
+001024: 177566  ; 177566 = Console's printer data register
+001026: 120027  CMPB    R0,#000101  ; Test whether original char was '@' ?
+001030: 000101
+001032: 001362  BNE     001000      ; If not, then loop back to start.
+001034: 000000  HALT                ; But if it was meow, then halt.

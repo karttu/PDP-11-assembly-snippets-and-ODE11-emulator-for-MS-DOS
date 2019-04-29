@@ -1,0 +1,264 @@
+;
+        .MCALL .REGDEF
+	.GLOBL	INT32BUF,SINT32BUF,INT16BUF,SINT16BUF,OUT32INT
+	.GLOBL  DIVBY10,ITOO,ATOO
+;
+; These functions were coded by Antti Karttunen once upon a time.
+;
+; This is RT11 version of intbuf.mac file. I have replaced EIS instructions
+; (ASHC) with instructions which accomplish the same thing. That's
+; because my PDT-11/150 doesn't have EIS set. (Sniff...)
+;
+;
+; 32-bit integer to be printed is in R0:R1, i.e. R0 is high word, and R1 low.
+; Old division system worked like this:
+; ((R0 * 65536) + R1) / 10.  =
+; (R0 / 10.)*65536 + ((((R0 mod 10.)*65536)+R1) / 10.)
+; DIV puts quotient to R0, and remainder to R1.
+;
+; However, this doesn't work, because DIV instruction of the PDP-11
+; is signed divide, and it overflows (= produces erroneous results)
+; if quotient comes bigger than 15 bits (32767 ?).
+;
+; So routine DIVBY10 is used instead of DIV-instruction.
+;
+; Number is given to this routine in R1 & R2, and R0 is destination pointer.
+; (R1 = High word, R2 = Low word).
+; Returns new value of R0.
+; Coded by AK once upon a time.
+;
+        .PSECT
+INT32BUF::
+;	MOV     R2,-(SP)        ;
+	MOV     R3,-(SP)        ; Save these
+	MOV     R4,-(SP)        ; registers.
+	MOV     R5,-(SP)        ;
+	MOV     R0,R5           ; Move destination pointer from R0 to R5
+	MOV     R1,R0           ; Move R1:R2 to R0:R1
+	MOV     R2,R1
+;	MOV     #10.,R2         ; Set divisor to be ten. (Not needed now.)
+	JSR     PC,OUT32INT
+	MOV     R5,R0           ; Restore new destination ptr to R0.
+	CLRB    (R0)            ; Put ending zero.
+	MOV     (SP)+,R5        ;
+	MOV     (SP)+,R4        ; Restore these
+	MOV     (SP)+,R3        ; registers.
+;	MOV     (SP)+,R2        ;
+	RTS     PC
+;
+; Like previous, but signed output:
+SINT32BUF::
+;	MOV     R2,-(SP)        ;
+	MOV     R3,-(SP)        ; Save these
+	MOV     R4,-(SP)        ; registers.
+	MOV     R5,-(SP)        ;
+	MOV     R0,R5           ; Move destination pointer from R0 to R5
+	MOV     R1,R0           ; Move R1:R2 to R0:R1
+	BPL     10$             ; If high word is negative, i.e. sign bit on.
+	COM     R2              ; Then complement it
+	COM     R0              ;  both words.
+	ADD     #1,R2           ; And increment by one.
+	ADC     R0              ;  also high word. I.e. negate the whole thing.
+	MOVB    #'-,(R5)+       ; And put minus sign as first character.
+10$:	MOV     R2,R1
+;	MOV     #10.,R2         ; Set divisor to be ten. (Not needed now.)
+	JSR     PC,OUT32INT
+	MOV     R5,R0           ; Restore new destination ptr to R0.
+	CLRB    (R0)            ; Put ending zero.
+	MOV     (SP)+,R5        ;
+	MOV     (SP)+,R4        ; Restore these
+	MOV     (SP)+,R3        ; registers.
+;	MOV     (SP)+,R2        ;
+	RTS     PC
+;
+; Number is given to this routine in R1, and R0 is destination pointer.
+; Returns new value of R0.
+INT16BUF::
+	MOV     R2,-(SP)        ;
+	MOV     R3,-(SP)        ; Save these
+	MOV     R4,-(SP)        ; registers.
+	MOV     R5,-(SP)        ;
+	MOV     R0,R5           ; Move destination pointer from R0 to R5
+	CLR     R0              ; Clear high word, and keep R1 in R1.
+;	MOV     #10.,R2         ; Set divisor to be ten. (Not needed now.)
+	JSR     PC,OUT32INT
+	MOV     R5,R0           ; Restore new destination ptr to R0.
+	CLRB    (R0)            ; Put ending zero.
+	MOV     (SP)+,R5        ;
+	MOV     (SP)+,R4        ; Restore these
+	MOV     (SP)+,R3        ; registers.
+	MOV     (SP)+,R2        ;
+	RTS     PC
+;
+; Number is given to this routine in R1, and R0 is destination pointer.
+; Returns new value of R0.
+; Like previous, but outputs R1 as signed integer.
+SINT16BUF::
+	MOV     R2,-(SP)        ;
+	MOV     R3,-(SP)        ; Save these
+	MOV     R4,-(SP)        ; registers.
+	MOV     R5,-(SP)        ;
+	MOV     R0,R5           ; Move destination pointer from R0 to R5
+	CLR     R0              ; Clear high word, and keep R1 in R1.
+	TST     R1              ; Check whether R1 is signed?
+	BPL     10$             ; If high word is negative, i.e. sign bit on.
+	NEG     R1              ; Then clear it, to get absolute value.
+	MOVB    #'-,(R5)+       ; And put minus sign as first character.
+10$:
+;	MOV     #10.,R2         ; Set divisor to be ten. (Not needed now.)
+	JSR     PC,OUT32INT
+	MOV     R5,R0           ; Restore new destination ptr to R0.
+	CLRB    (R0)            ; Put ending zero.
+	MOV     (SP)+,R5        ;
+	MOV     (SP)+,R4        ; Restore these
+	MOV     (SP)+,R3        ; registers.
+	MOV     (SP)+,R2        ;
+	RTS     PC
+;
+;
+OUT32INT:
+        JSR     PC,DIVBY10
+	TST     R3              ; Test low word of quotient.
+	BNE	JATKA		; If that is not zero yet.
+	TST	R2		; Test also high word of quotient.
+	BEQ	POISTU		; If that is zero too, then stop dividing.
+JATKA:	MOV	R4,-(SP)	; Save remainder to stack.
+	MOV	R2,R0		; Move quotient (R2:R3)
+	MOV	R3,R1	        ;  to R0:R1 and recurse
+	JSR	PC,OUT32INT	;   back, using that as argument.
+	MOV	(SP)+,R4   ; When returning, pop remainders in opposite order.
+POISTU:	ADD	#60,R4		; Add '0' and
+	MOVB    R4,(R5)+        ; put them to buffer.
+	RTS	PC		; Return.
+;
+; Here is the original code for OUT32INT, now commented out, because
+; produced erroneous results with big values. (Because of the limit
+; that quotient of DIV must be max. fifteen bits).
+;
+;OUT32INT:
+;	CLR     R3              ; Clear "high word of quotient".
+;	CMP	R0,R2		; If high word is lower than ten,
+;	BLO	EASDIV		;  then single DIV instruction works well.
+;	MOV	R1,-(SP)	; Save low word to stack.
+;	MOV	R0,R1		; Move high word to low word.
+;	CLR	R0		; And clear high word.
+;	DIV	R2,R0		; Now divide that high word by ten.
+;	MOV	R0,R3		; Save quotient to R3
+;	MOV	R1,R0		; and remainder to high word.
+;	MOV	(SP)+,R1	; Restore the original low word from stack.
+;EASDIV: DIV	R2,R0    ; Divide the (((high mod 10.)*65536) + low) by ten.
+;       BVS     ERTZU           ; If overflow occurs.
+;	BNE	JATKA		; If quotient not zero yet.
+;	TST	R3		; Test also high word of quotient.
+;	BEQ	POISTU		; If that is zero too, then stop dividing.
+;JATKA:	MOV	R1,-(SP)	; Save remainder to stack.
+;	MOV	R0,R1		; Move quotient (R3:R0)
+;	MOV	R3,R0	        ;  to R0:R1 and recurse
+;	JSR	PC,OUT32INT	;   back, using that as argument.
+;	MOV	(SP)+,R1   ; When returning, pop remainders in opposite order.
+;POISTU: ADD	#60,R1		; Add '0' and
+;	MOVB    R1,(R4)+        ; put them to buffer.
+;	RTS	PC		; Return.
+;ERTZU:  MOVB    #077,(R4)+     ; Put question mark instead of digit for errs.
+;       RTS     PC
+;
+; This routine is adopted from
+; P. Pihkala's MC68K routine, which was in turn modified from
+; similar 6502 routine.
+;
+; R0:R1 should containd dividend. Quotient is returned in R2:R3, and
+; remainder in R4.
+; Divisor is always ten.
+;
+DIVBY10::
+        MOV     R5,-(SP)        ; Save at least this.
+        MOV     #32.,R5         ; Bit count. This routine is for longwords.
+	CLR     R4              ; Set remainder zero.
+	CLR     R2              ; Set quotient
+	CLR     R3              ;  to be zero.
+$1:
+; Can't use these with PDT-11/150, because it lacks EIS instructions:
+;       ASHC    #1,R2           ; Multiply quotient (R2:R3) by two.
+;	ASHC    #1,R0           ; Multiply dividend (R0:R1) by two.
+; So they are replaced by these instructions:
+        ASL     R3              ; Multiply quotient (R2:R3)
+	ROL     R2              ;  by two.
+	ASL     R1              ; Multiply dividend (R0:R1)
+	ROL     R0              ;  by two.
+; Common code continues:
+	ROL     R4              ; Double remainder and add carry from dividend.
+	CMP     R4,#10.
+	BLO     $2
+	SUB     #10.,R4
+	ADD     #1,R3           ; Increment
+	ADC     R2              ;  quotient.
+$2:
+        SOB     R5,$1           ; Loop bit count times.
+	MOV     (SP)+,R5        ; Restore the original R5.
+	RTS     PC
+;
+; Convert number in R1 to octal, storing (always) 6 digits to buffer
+; beginning from R0. R0 is returned pointing to next character after
+; the digits. (Original value + 6).
+; Results can vary from 000000 to 177777.
+; Digits are generated in reverse order, from right to left. When high
+; word R0:R1 (whose high word R0 is set to zero) is arithmetically
+; shifted to right with ASHC, we don't need to care about sign bit.
+;
+ITOO::
+        MOV     R2,-(SP)        ; Save R2, R3 & R4.
+	MOV     R3,-(SP)
+	MOV     R4,-(SP)
+        MOV     R0,R4           ; Internally, use R4 as digit pointer.
+;	CLR     R0              ; Clear high word of R0:R1 pair. (For ASHC)
+        MOV     #6,R3           ; Set the digit count.
+	ADD     R3,R4           ; And set R4 to point the last digit + 1.
+10$:
+        MOV     R1,R2           ; Get copy of R1
+	BIC     #^C7,R2         ; Get the lowest octal digit.
+	ADD     #'0,R2          ; Add 060 to get the ascii digit.
+	MOVB    R2,-(R4)        ; Store it to destination area.
+; Again, EIS code commented out:
+;	ASHC    #-3,R0          ; Divide R0:R1 by 8. (Shift 3 right).
+; And replaced by this:
+        CLC                     ; Shift R1 three times right, _logically_.
+	ROR     R1
+        CLC
+	ROR     R1
+        CLC
+	ROR     R1
+; Common code continues:
+	SOB     R3,10$          ; Loop until digit count zero.
+        MOV     R4,R0           ; Set R0 to point
+	ADD     #6,R0           ; to first character after digits.
+	CLRB    (R0)            ; And put ending zero.
+	MOV     (SP)+,R4        ; Restore R4, R3 & R2.
+	MOV     (SP)+,R3
+	MOV     (SP)+,R2
+	RTS     PC
+;
+; Convert octal number to binary.
+; R0 should contain pointer to first digit.
+; Result is left in R1, and R0 is left to point to first non-octal
+; character encountered. Other register are left intact.
+ATOO::
+        MOV     R2,-(SP)        ; Save R2.
+        CLR     R1              ; Initialize result to zero.
+30$:	MOVB	(R0)+,R2        ; Get next character.
+	SUB	#'0,R2		; Subtract digit '0' (060 in octal).
+	BMI	40$		; If R2 less than '0' then branch out.
+	CMPB	R2,#7		; Or if R2 is over '7' ?
+	BHI	40$
+	ASL     R1              ; Shift previous result three
+	ASL     R1              ;   times left, i.e. multiply
+	ASL     R1              ;    by eight.
+	ADD     R2,R1           ; And add new digit to it.
+	BR	30$		; And loop back.
+40$:
+        DEC     R0              ; Set R0 to point back to first non-octal char.
+        MOV     (SP)+,R2        ; Restore original R2.
+	RTS     PC
+;
+;
+;
+	.END

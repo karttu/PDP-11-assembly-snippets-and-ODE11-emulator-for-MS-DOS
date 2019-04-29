@@ -1,0 +1,113 @@
+;
+;
+; R1 should contain instruction code, which is replaced by new
+;  substitution.
+; R3 is incremented by 2 or 4 depending how many arguments instruction has.
+; R2 is used.
+;
+GET_NEW_INSTR:
+;
+        MOV     R1,R2           ; R1 contains the instruction code.
+	BIC     #^C7,R2         ; R2 contains the three lowest bits,
+;                                  (i.e. usually a register field)
+        CMP     R1,#000100      ; If HALT - MFPT
+	BLO     pois            ;  no substitutions...
+	CMP     R1,#000177      ; 0001DD JMP ?
+	BLOS    handle_m1
+        CMP     R1,#000207      ; 00020R RTS ?
+	BLOS    handle_r1
+	CMP     R1,#000300      ; SPL, NOP, CLC, SEN, SCC, etc ?
+	BLO     pois
+	CMP     R1,#000377      ; 0003DD SWAB ?
+	BLOS    handle_m1
+	CMP     R1,#004000      ; Branches BR - BLE ?
+	BLO     pois
+	CMP     R1,#004777      ; 004RDD JSR ?
+	BLOS    handle_rm
+	CMP     R1,#006377      ; 0050DD (CLR) - 0063DD (ASL) ?
+	BLOS    handle_m1
+	CMP     R1,#006500      ; 0065DD (MFPI) ?
+	BLO     pois
+	CMP     R1,#007077      ; 0070DD (CSM) ?
+	BLOS    handle_m1
+	CMP     R1,#010000      ; 01SSDD (MOV) ?
+	BLO     pois
+	CMP     R1,#067777      ; 06SSDD (ADD) ?
+	BLOS    handle_m2
+	CMP     R1,#074777      ; 070RSS (MUL) - 074RDD (XOR) ?
+	BLOS    handle_rm
+	CMP     R1,#077000      ; 077RJJ (SOB) ?
+	BLO     pois
+	CMP     R1,#077777
+	BLOS    handle_sob
+	CMP     R1,#105000      ; 1050DD (CLRB)
+	BLO     pois
+	CMP     R1,#106777      ; 1067DD (MFPS) ?
+	BLOS    handle_m1
+	CMP     R1,#110000      ; 11SSDD (MOVB) ?
+	BLO     pois
+	CMP     R1,#167777      ; 16SSDD (SUB) ?
+	BLOS    handle_m2
+;
+pois:
+        RTS     PC
+;
+handle_rm:
+handle_sob:
+handle_m2:
+	MOV     R2,-(SP)        ; Save orig. register field (bits 2-0)
+        MOV     R1,-(SP)        ; & the original instr. code.
+	ASR     R1              ; Shift right six. times.
+	ASR     R1
+	ASR     R1
+	ASR     R1
+	ASR     R1
+	ASR     R1
+        MOV     R1,R2
+	BIC     #^C7,R2         ; Get second register field (bits 6-8)
+; Actually, this code is not needed, because INCR_LC will think that
+; 4 of 004RDD is mode -(Rn) and will do nothing for that:
+;	BIT     #^C77,R1        ; Check whether R1 is (004RDD >> 6) (JSR)
+;	BEQ     nope            ; Then there's no real second adr mode field.
+	CMP     (SP),#070000    ; Check that instr. is not 070000 - 077777
+	BGE     nope            ; Use signed comparison so that 110000 < 070000
+        JSR     PC,INCR_LC      ; If real two adr. mode instr. (MOV[B] - ADD)
+nope:
+	MOV     REGS(R2),R2     ; Get substitute register.
+	ASL     R2              ; And shift left six times...
+	ASL     R2
+	ASL     R2
+	ASL     R2
+	ASL     R2
+	ASL     R2
+        MOV     (SP)+,R1        ; Restore the original instr. code.
+	BIC     #700,R1         ; Clear bits 6-8
+	BIS     R2,R1           ; Or new register to that place (bits 6-8).
+	MOV     (SP)+,R2        ; Restore the original reg field (bits 2-0).
+handle_m1:
+        JSR     PC,INCR_LC
+;
+handle_r1:
+	BIC     #7,R1           ; Clear the three lowest bits of instr. code
+        BIS     REGS(R2),R1     ; R1 contains now new instr. code.
+;
+;
+; Increment R3 by two if it's necessary. I.e. if addressing mode is
+;  27 (immediate) or 37 (absolute) or 6R or 7R.
+; R1 should contain the addressing mode, and R2 the register field only.
+; R3 is the location counter.
+;
+INCR_LC:
+	BIT     #20,R1          ; Check that mode is either 2, 3, 6 or 7.
+	BEQ     dont_do_it
+        CMP     R2,#7           ; If register is 7 (PC)
+	BEQ     do_it           ;  then it is 27, 37, 67 or 77.
+	BIT     #40,R1          ; Check whether mode is 6 or 7?
+	BEQ     dont_do_it      ; If not, then don't do it.
+do_it:
+        ADD     #2,R3           ; Increment location counter by 2.
+dont_do_it:
+        RTS     PC
+;
+;
+;

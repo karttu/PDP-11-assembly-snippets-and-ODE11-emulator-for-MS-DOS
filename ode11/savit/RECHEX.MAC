@@ -1,0 +1,240 @@
+        .TITLE  HEXREC  CREATE K11PRT.SAV AND/OR K11RT4.SAV FROM HEX DUMP
+        .IDENT  /1.00/
+ 
+ 
+;       25-OCT-84  11:14:41  BRIAN NELSON
+;
+;       USAGE:  RUN K11HEX
+;               *K11PRT=K11PRT
+; OR            *K11RT4=K11RT4
+
+; 31-DEC-1990
+; Modified from K11HEX (by Brian Nelson) by Antti Karttunen,
+;  so that reads Hex stuff directly from line TT: 
+ 
+ 
+;       .MCALL  .CLOSE  ,.CSIGEN,.EXIT  ,.READW ,.WRITW ,.PRINT
+ 
+        .PSECT
+
+        BUFSIZ = 64000              ; = 1500*40 (26624. = 832. * 32.)
+        ENDCHR = '$
+        WRTCHR = '#
+
+; We have SOB in PDT-11/150, so comment out this macro:
+; 
+;       .MACRO  SOB     REG     ,DST
+;       DEC     REG
+;       BNE     DST
+;       .ENDM   SOB
+ 
+        .MACRO  MAPCH   CH
+        MOVB    MAP(CH) ,CH
+        .ENDM   MAPCH
+ 
+MAP:    .REPT   48.
+        .BYTE   377
+        .ENDR
+        .BYTE   0,1,2,3,4,5,6,7,8.,9.
+        .BYTE   377,377,377,377,377,377,377
+        .BYTE   10.,11.,12.,13.,14.,15.
+        .REPT   256.-70.
+        .BYTE   377
+        .ENDR
+ 
+        .EVEN
+RTWORK: .BLKW   10
+INBLK:  .WORD   0
+OUTBLK: .WORD   0
+INPNT:  .WORD   0
+OUTPNT: .WORD   0
+INBUFF: .BLKW   400
+OUTBUF: .BLKW   400
+ENDFLG: .WORD   0               ; Flag to tell whether user has entered '$'
+ 
+        .ENABL  LC
+WRERR:  .ASCIZ  /WRITE ERROR ON DEVICE/
+RDERR:  .ASCIZ  /READ  ERROR FROM FILE/
+BADCH:  .ASCIZ  /NON HEX CHARACTER READ FROM INPUT/
+BADCHK: .ASCIZ  /CHECKSUM ERROR/
+ALLDONE:.ASCIZ  /All done/
+CSIBAD: .ASCIZ  /Could not open the files on the command line/
+ILLCMD: .ASCIZ  <15><12>/**ILLEGAL CHARACTER AT START OF LINE !!!/
+ILLMSG: .ASCII  /Encountered /
+ILLCNT: .ASCIZ  /0 illegal commands./
+PROMPT: .ASCII  /!/<200>
+MORE:   .ASCII  <15><12>/More (/
+COUNT:  .ASCIZ  /0) ?/          ; I hope there is no more than 9 batches
+;                                  of hex-stuff...
+        .EVEN
+DEFEXT: .RAD50  /HEX/
+        .RAD50  /SAVSAVSAV/
+ 
+
+ 
+CONVERT:.CSIGEN #HANDLD,#DEFEXT,#0      ; GET A COMMAND
+        BCC     BIGLOOP                 ; OK
+        .PRINT  #CSIBAD                 ; NO GOOD
+        .EXIT
+ 
+BIGLOOP: .PRINT  #MORE
+        MOV     #BIGBUF,R1              ; Initialize pointer to bigbuf.
+10$:    .PRINT  #PROMPT
+        MOV     #40     ,R5             ; LOOP FOR THE DATA RECORD PLEASE
+        CLR     R4                      ; CLEAR CHECKSUM IF WE USE IT
+        CALL    GETC                    ; GET FIRST CHARACTER.
+;       BCS     60$
+        CMP     R0,#WRTCHR              ; Test whether user typed write cmd
+        BEQ     15$
+        CMP     R0,#ENDCHR
+        BNE     17$
+        MOV     R0,ENDFLG
+15$:    BR      WRITBUF
+17$:    TSTB    MAP(R0)                 ; Check if hex digit.
+        BPL     25$                     ; If OK hex digit, then start reading
+        .PRINT  #ILLCMD                 ; Print illegal command message
+        INCB    ILLCNT
+        BR      10$                     ; Input again.
+20$:    CALL    GETC                    ; GET A CHARACTER
+;       BCS     60$                     ; MOST LIKELY ALL DONE
+25$:    MOV     R0      ,R3             ; SAVE IT
+        MAPCH   R3
+        BPL     30$                     ; CHAR WAS OK
+        .PRINT  #BADCH                  ; NOT OK
+        BR      ERTZU
+30$:    ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        CALL    GETC                    ; GET THE NEXT ONE PLEASE
+;       BCS     80$                     ; EXIT ON I/O ERROR PLEASE
+        MAPCH   R0                      ; CONVERT IT
+        BPL     40$                     ; IT WAS OK
+        .PRINT  #BADCH                  ; ERROR
+        BR      ERTZU
+40$:    ADD     R3      ,R0             ; ADD IT IN AND COPY THE BYTE
+        ADD     R0      ,R4             ; ADD INTO SIMPLEMINDED CHECKSUM
+;       CALL    PUTC                    ; WRITE IT OUT
+;       BCS     70$                     ; I/O ERROR ON WRITE
+        MOVB    R0,(R1)+                ; WRITE CHARACTER TO BIGBUF
+        SOB     R5      ,20$            ; FINISHED WITH THE READ
+        CALL    GETCHK                  ; READ THE CHECKSUM
+        CMP     R0      ,R4             ; DO THEY MATCH ?
+        BEQ     50$                     ; YES
+        .PRINT  #BADCHK                 ; NO, PRINT ERROR AND EXIT
+        BR      ERTZU
+50$:    CMP     R1,#BUFEND              ; Check if buffer full ?
+        BLO     10$                     ; If lower then read next line
+WRITBUF: MOV    R1,R5                   ; Save pointer to last char to R5
+        MOV     #BIGBUF,R4              ; Set pointer to start of buffer.
+LOOP:   CMP     R4,R5                   ; Check whether all written ?
+        BHIS    55$                     ; If R4 >= R5, then exit
+        MOVB    (R4)+,R0                ; Write bytes from bigbuf
+        CALL    PUTC                    ;  to file...
+        BCS     70$                     ; Exit on write error.
+        BR      LOOP
+55$:    TST     ENDFLG                  ; Test whether user entered endchar.
+        BNE     60$                     ; If so, then close the file, & exit
+        INCB    COUNT                   ; Increment digit in more prompt.
+        JMP     BIGLOOP                 ; And loop back to bigloop.
+60$:    CALL    CLOSE                   ; CLOSE UP AND EXIT
+        BR      100$                    ; BYE
+ 
+70$:    .PRINT  #WRERR                  ; WRITE ERROR
+        BR      100$                    ; EXIT
+80$:    .PRINT  #RDERR                  ; A READ ERROR
+        BR      100$                    ;
+ 
+100$:   .PRINT  #ALLDONE
+ERTZU:  .PRINT  #ILLMSG
+        .EXIT
+ 
+ 
+GETCHK: CLR     R3
+        CALL    GETC
+        BCS     100$
+        CMP     R0,#':                  ; Should be colon here.
+        BEQ     5$
+        .PRINT  #BADCHK
+        BR      ERTZU
+5$:     CALL    GETC
+        MAPCH   R0                      ; Here should be two zeros,
+        ADD     R0,R3                   ; so add them to R3.
+        CALL    GETC                    ; Actually this code is useless,
+        MAPCH   R0                      ; because if those digits are
+        ADD     R0,R3                   ; anything else than 0, the
+; value in R3 is anyway shifted out of it, because there is four more digits
+        MOV     #4      ,R2
+10$:    CALL    GETC
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        ASL     R3                      ; AVOID MUL FOR SYSTEMS W/O EIS
+        MAPCH   R0
+        ADD     R0      ,R3
+        SOB     R2      ,10$
+100$:   MOV     R3      ,R0
+        RETURN
+ 
+ 
+
+
+
+
+
+
+
+
+
+GETC:   .TTYIN                          ; GET THE NEXT CHARACTER FROM TT:
+        BCS     100$                    ; OOPS
+        CMPB    R0      ,#40            ; SPACE OR LESS?
+        BLOS    GETC                    ; YES, GET THE NEXT CHARACTER THEN
+        CLC                             ; NO, RETURN IT
+100$:   RETURN                          ; EXIT WITH C BIT ERROR CODE
+ 
+;.GETC: CMP     INPNT   ,#1000
+;       BLO     10$
+;       CLR     INPNT                   ; CLEAR THE BUFFER OFFSET ALSO
+;       .READW  #RTWORK,#3,#INBUFF,#400,INBLK
+;       BCS     100$                    ; END OF FILE
+;       INC     INBLK                   ; NEXT TIME THE NEXT BLOCK PLEASE
+;10$:   MOV     INPNT   ,R0             ; GET THE CURRENT BUFFER OFFSET
+;       INC     INPNT                   ; + 1
+;       MOVB    INBUFF(R0),R0           ; AND RETURN THE CHARACTER
+;       CLC                             ; SUCCESS
+;100$:  RETURN                          ; EXIT WITH SUCCESS IN 'C' BIT
+ 
+ 
+PUTC:   CMP     OUTPNT  ,#1000          ; ROOM FOR MORE OUTPUT DATA
+        BLO     10$
+        CLR     OUTPNT                  ; CLEAR THE BUFFER OFFSET ALSO
+        MOV     R0      ,-(SP)          ; SAVE THE CHARACTER BEING PUT
+        .WRITW  #RTWORK,#0,#OUTBUFF,#400,OUTBLK
+        MOV     (SP)+   ,R0             ; RESTORE THAT CHARACTER PLEASE
+        BCS     100$                    ; END OF FILE
+        INC     OUTBLK                  ; NEXT TIME THE NEXT BLOCK PLEASE
+10$:    MOV     OUTPNT  ,R1             ; GET THE CURRENT BUFFER OFFSET
+        INC     OUTPNT                  ; + 1
+        MOVB    R0      ,OUTBUFF(R1)    ; AND RETURN THE CHARACTER
+        CLC                             ; SUCCESS
+100$:   RETURN                          ; EXIT WITH SUCCESS IN 'C' BIT
+ 
+ 
+CLOSE:  TST     OUTPNT                  ; ANYTHING TO DUMP OUT
+        BEQ     20$                     ; NO, SHOULD NOT BE
+        MOV     OUTBLK  ,R2             ; SAVE CURRENT OUTPUT BLOCK #
+10$:    CMP     R2      ,OUTBLK         ; DID IT DUMP IT'S BUFFER?
+        BNE     20$                     ; YES
+        CLR     R0                      ; YES, DUMP A BUNCH OF NULLS OUT
+        CALL    PUTC                    ; UNTIL PUTC CLEARS THE POINTER
+        BR      10$
+20$:    .CLOSE  #0                      ; CLOSE THE TWO FILE NOW
+        .CLOSE  #3                      ; OUTPUT ALSO PLEASE
+        RETURN
+ 
+HANDLD: .BLKW   500
+BIGBUF: .BLKW   BUFSIZ/2                ; Buffer for data.
+BUFEND: .BLKW   40                      ; Some "overflow"-space.
+ 
+        .END    CONVERT

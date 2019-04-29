@@ -1,0 +1,515 @@
+
+
+.MACRO ..V1..
+...V1=1
+.ENDM
+
+.MACRO ..V2..
+.MCALL  ...CM1,...CM2,...CM3,...CM4
+...V2=1
+.ENDM
+
+
+.MACRO ...CM1 .AREA,.CODE,.CHAN
+.IF NB .AREA
+                        MOV     .AREA,%0
+                        MOVB    #.CODE,1(0)
+.ENDC
+.IF NB .CHAN
+        .IF IDN <.CHAN>,<#0>
+                        CLRB    (0)
+        .IFF
+                        MOVB    .CHAN,(0)
+        .ENDC
+.ENDC
+.ENDM
+
+.MACRO ...CM2 .ARG,.OFFSET,.INS
+.IIF NB <.ARG>,         MOV     .ARG,.OFFSET(0)
+.IIF NB <.INS>,         EMT     ^O375
+.ENDM
+
+.MACRO ...CM3 .CHAN,.CODE
+                        MOV     #.CODE*^O400,%0
+.IIF NB <.CHAN>,        BISB    .CHAN,%0
+                        EMT     ^O374
+.ENDM
+
+.MACRO ...CM4 .AREA,.CHAN,.BUFF,.WCNT,.BLK,.CRTN,.CODE
+...CM1 <.AREA>,<.CODE>,<.CHAN>
+...CM2 <.BLK>,2.
+...CM2 <.BUFF>,4.
+...CM2 <.WCNT>,6.
+...CM2 <.CRTN>,8.,X
+.ENDM
+
+
+.MACRO .CDFN .AREA,.ADD,.NUM
+...CM1 <.AREA>,13.,#0
+...CM2 <.ADD>,2.
+...CM2 <.NUM>,4.,X
+.ENDM
+
+.MACRO .CHAIN
+...CM3 ,8.
+.ENDM
+
+.MACRO .CHCOPY .AREA,.CHAN,.OCHAN
+...CM1 <.AREA>,11.,<.CHAN>
+...CM2 <.OCHAN>,2.,X
+.ENDM
+
+.MACRO .CNTXSW .AREA,.ADD
+...CM1 <.AREA>,27.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .CMKT .AREA,.ID,.TIME
+...CM1 <.AREA>,19.,#0
+...CM2 <.ID>,2.
+.IF B .TIME
+                        CLR     4.(0)
+.IFF
+                        MOV     .TIME,4.(0)
+.ENDC
+                        EMT     ^O375
+.ENDM
+
+.MACRO .CLOSE .CHAN
+.IF DF ...V1
+                        EMT     ^O<160+.CHAN>
+.IFF
+...CM3 <.CHAN>,6.
+.ENDC
+.ENDM
+
+.MACRO .CSIGEN .DEVSPC,.DEFEXT,.CSTRING
+                        MOV     .DEVSPC,-(6.)
+                        MOV     .DEFEXT,-(6.)
+.IF B .CSTRING
+                        CLR     -(6.)
+.IFF
+                        MOV     .CSTRING,-(6.)
+.ENDC
+                        EMT     ^O344
+.ENDM
+
+
+.MACRO .CSISPC .OUTSPC,.DEFEXT,.CSTRING
+                        MOV     .OUTSPC,-(6.)
+                        MOV     .DEFEXT,-(6.)
+.IF B .CSTRING
+                        CLR     -(6.)
+.IFF
+                        MOV     .CSTRING,-(6.)
+.ENDC
+                        EMT     ^O345
+.ENDM
+
+.MACRO .CSTAT .AREA,.CHAN,.ADD
+...CM1 <.AREA>,23.,<.CHAN>
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .DATE
+                        MOV     @#54,%0
+                        MOV     ^O262(0),%0
+.ENDM
+
+.MACRO .DELETE .AREA,.CHAN,.DEVBLK,.SPF
+.IF DF ...V1
+ .IIF NB <.CHAN>        MOV     .CHAN,%0
+                        EMT     ^O<.AREA>
+.IFF
+...CM1 <.AREA>,0,<.CHAN>
+...CM2 <.DEVBLK>,2.
+ .IF B .SPF
+                        CLR     4.(0)
+ .IFF
+                        MOV     .SPF,4.(0)
+ .ENDC
+                        EMT     ^O375
+.ENDC
+.ENDM
+
+.MACRO .DEVICE .AREA,.ADD
+...CM1 <.AREA>,12.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .DSTATUS .RETSPC,.DNAME
+.IIF NB <.DNAME>,       MOV     .DNAME,%0
+                        MOV     .RETSPC,-(6.)
+                        EMT     ^O342
+.ENDM
+
+.MACRO .ENTER .AREA,.CHAN,.DEVBLK,.LEN,.SPF
+.IF DF ...V1
+                        MOV     .CHAN,%0
+ .IF B .DEVBLK
+                        CLR     -(6.)
+ .IFF
+                        MOV     .DEVBLK,-(6.)
+ .ENDC
+                        EMT     ^O<40+.AREA>
+.IFF
+...CM1 <.AREA>,2.,<.CHAN>
+...CM2 <.DEVBLK>,2.
+ .IF NB .LEN
+                        MOV     .LEN,4.(0)
+ .IFF
+                        CLR     4.(0)
+ .ENDC
+ .IF NB .SPF
+                        MOV     .SPF,6.(0)
+ .IFF
+                        CLR     6.(0)
+ .ENDC
+                        EMT     ^O375
+.ENDC
+.ENDM
+
+.MACRO .EXIT
+                        EMT     ^O350
+.ENDM
+
+.MACRO .FETCH .ADD,.DNAME
+.IIF NB <.DNAME>,               MOV     .DNAME,%0
+                                MOV     .ADD,-(6.)
+                                EMT     ^O343
+.ENDM
+
+.MACRO .GTIM .AREA,.ADD
+...CM1 <.AREA>,17.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .GTJB .AREA,.ADD
+...CM1 <.AREA>,16.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .HERR
+...CM3 ,5.
+.ENDM
+
+.MACRO .HRESET
+                        EMT     ^O357
+.ENDM
+
+.MACRO .INTEN .PRIO,.PIC
+.IF NB .PIC
+                MOV     @#^O54,-(6.)
+                JSR     5.,@(6.)+
+.IFF
+                JSR     5.,@^O54
+.ENDC
+                .WORD   ^C<.PRIO*32.>&224.
+.ENDM
+
+.MACRO .LOCK
+                        EMT     ^O346
+.ENDM
+
+.MACRO .LOOKUP .AREA,.CHAN,.DEVBLK,.SPF
+.IF DF ...V1
+ .IIF NB <.CHAN>,       MOV     .CHAN,%0
+                        EMT     ^O<20+.AREA>
+.IFF
+...CM1 <.AREA>,1,<.CHAN>
+...CM2 <.DEVBLK>,2.
+ .IF B .SPF
+                        CLR     4.(0)
+ .IFF
+                        MOV     .SPF,4.(0)
+ .ENDC
+                        EMT     ^O375
+.ENDC
+.ENDM
+
+.MACRO .MRKT .AREA,.TIME,.CRTN,.ID
+...CM1 <.AREA>,18.,#0
+...CM2 <.TIME>,2.
+...CM2 <.CRTN>,4.
+...CM2 <.ID>,6.,X
+.ENDM
+
+.MACRO .MWAIT
+...CM3 ,9.
+.ENDM
+
+.MACRO .PRINT .ADD
+.IIF NB <.ADD>,         MOV     .ADD,%0
+                        EMT     ^O351
+.ENDM
+
+.MACRO .PROTECT .AREA,.ADD
+...CM1 <.AREA>,25.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .PURGE .CHAN
+...CM3 <.CHAN>,3.
+.ENDM
+
+.MACRO .QSET .QADD,.QLEN
+.IIF NB <.QLEN>,        MOVB    .QLEN,%0
+                        MOV     .QADD,-(6.)
+                        EMT     ^O353
+.ENDM
+
+.MACRO .RCTRLO
+                        EMT     ^O355
+.ENDM
+
+.MACRO .RCVD .AREA,.BUFF,.WCNT
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,#1,22.
+.ENDM
+
+.MACRO .RCVDC .AREA,.BUFF,.WCNT,.CRTN
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,<.CRTN>,22.
+.ENDM
+
+.MACRO .RCVDW .AREA,.BUFF,.WCNT
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,#0,22.
+.ENDM
+
+.MACRO .READ .AREA,.CHAN,.BUFF,.WCNT,.BLK
+.IF DF ...V1
+ .IIF NB <.WCNT>,       MOV     .WCNT,%0
+                        MOV     #1,-(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<200+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,#1,8.
+.ENDC
+.ENDM
+
+.MACRO .READC .AREA,.CHAN,.BUFF,.WCNT,.CRTN,.BLK
+.IF DF ...V1
+ .IIF NB <.CRTN>,       MOV     .CRTN,%0
+                        MOV     .WCNT,-(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<200+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,<.CRTN>,8.
+.ENDC
+.ENDM
+
+.MACRO .READW .AREA,.CHAN,.BUFF,.WCNT,.BLK
+.IF DF ...V1
+ .IIF NB <.WCNT>,       MOV     .WCNT,%0
+                        CLR     -(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<200+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,#0,8.
+.ENDC
+.ENDM
+
+.MACRO .REGDEF
+R0=%0
+R1=%1
+R2=%2
+R3=%3
+R4=%4
+R5=%5
+SP=%6
+PC=%7
+.ENDM
+
+.MACRO .RELEASE .DEVBLK
+.IIF NB <.DEVBLK>,      MOV     .DEVBLK,%0
+                        CLR     -(6.)
+                        EMT     ^O343
+.ENDM
+
+.MACRO .RENAME .AREA,.CHAN,.DEVBLK
+.IF DF ...V1
+.IIF NB <.CHAN>,        MOV     .CHAN,%0
+                        EMT     ^O<100+.AREA>
+.IFF
+...CM1 <.AREA>,4.,<.CHAN>
+...CM2 <.DEVBLK>,2.,X
+.ENDC
+.ENDM
+
+.MACRO .REOPEN .AREA,.CHAN,.CBLK
+.IF DF ...V1
+ .IIF NB <.CHAN>,       MOV     .CHAN,%0
+                        EMT     ^O<140+.AREA>
+.IFF
+...CM1 <.AREA>,6.,<.CHAN>
+...CM2 <.CBLK>,2.,X
+.ENDC
+.ENDM
+
+.MACRO .SAVESTAT .AREA,.CHAN,.CBLK
+.IF DF ...V1
+ .IIF NB <.CHAN>,       MOV     .CHAN,%0
+                        EMT     ^O<120+.AREA>
+.IFF
+...CM1 <.AREA>,5.,<.CHAN>
+...CM2 <.CBLK>,2.,X
+.ENDC
+.ENDM
+
+.MACRO .RSUM
+...CM3 ,2.
+.ENDM
+
+.MACRO .SDAT .AREA,.BUFF,.WCNT
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,#1,21.
+.ENDM
+
+.MACRO .SDATC .AREA,.BUFF,.WCNT,.CRTN
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,<.CRTN>,21.
+.ENDM
+
+.MACRO .SDATW .AREA,.BUFF,.WCNT
+...CM4 <.AREA>,#0,<.BUFF>,<.WCNT>,,#0,21.
+.ENDM
+
+.MACRO .SERR
+...CM3 ,4.
+.ENDM
+
+.MACRO .SETTOP .ADD
+.IIF NB <.ADD>,         MOV     .ADD,%0
+                        EMT     ^O354
+.ENDM
+
+.MACRO .SFPA .AREA,.ADD
+...CM1 <.AREA>,24.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .SPFUN .AREA,.CHAN,.CODE,.BUFF,.WCNT,.BLK,.CRTN
+...CM1 <.AREA>,26.,<.CHAN>
+...CM2 <.BLK>,2.
+...CM2 <.BUFF>,4.
+...CM2 <.WCNT>,6.
+.IF NB .CODE
+                        MOVB    #^O377,8.(0)
+                        MOVB    .CODE,9.(0)
+.ENDC
+.IF B .CRTN
+                        CLR     10.(0)
+.IFF
+                        MOV     .CRTN,10.(0)
+.ENDC
+                        EMT     ^O375
+.ENDM
+
+.MACRO .SRESET
+                        EMT     ^O352
+.ENDM
+
+.MACRO .SPND
+...CM3 ,1
+.ENDM
+
+.MACRO .SYNCH .AREA
+.IIF NB <.AREA>,        MOV     .AREA,%4
+                        MOV     @#^O54,%5
+                        JSR     5.,@^O324(5.)
+.ENDM
+
+.MACRO .TLOCK
+...CM3 ,7.
+.ENDM
+
+.MACRO .TRPSET .AREA,.ADD
+...CM1 <.AREA>,3.,#0
+...CM2 <.ADD>,2.,X
+.ENDM
+
+.MACRO .TTINR
+                        EMT     ^O340
+.ENDM
+
+.MACRO .TTYIN .CHAR
+                        EMT     ^O340
+                        BCS     .-2
+.IIF NB <.CHAR>,        MOVB    %0,.CHAR
+.ENDM
+
+.MACRO .TTOUTR
+                        EMT     ^O341
+.ENDM
+
+.MACRO .TTYOUT .CHAR
+.IIF NB <.CHAR>,        MOVB    .CHAR,%0
+                        EMT     ^O341
+                        BCS     .-2
+.ENDM
+
+.MACRO .TWAIT .AREA,.TIME
+...CM1 <.AREA>,20.,#0
+...CM2 <.TIME>,2.,X
+.ENDM
+
+.MACRO .UNLOCK
+                        EMT     ^O347
+.ENDM
+
+.MACRO .WAIT .CHAN
+.IF DF ...V1
+                        EMT     ^O<240+.CHAN>
+.IFF
+...CM3 <.CHAN>,0
+.ENDC
+.ENDM
+
+.MACRO .WRITE .AREA,.CHAN,.BUFF,.WCNT,.BLK
+.IF DF ...V1
+ .IIF NB <.WCNT>,       MOV     .WCNT,%0
+                        MOV     #1,-(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<220+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,#1,9.
+.ENDC
+.ENDM
+
+.MACRO .WRITW .AREA,.CHAN,.BUFF,.WCNT,.BLK
+.IF DF ...V1
+ .IIF NB <.WCNT>,       MOV     .WCNT,%0
+                        CLR     -(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<220+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,#0,9.
+.ENDC
+.ENDM
+
+.MACRO .WRITC .AREA,.CHAN,.BUFF,.WCNT,.CRTN,.BLK
+.IF DF ...V1
+ .IIF NB <.CRTN>,       MOV     .CRTN,%0
+                        MOV     .WCNT,-(6.)
+                        MOV     .BUFF,-(6.)
+                        MOV     .CHAN,-(6.)
+                        EMT     ^O<220+.AREA>
+.IFF
+...CM4 <.AREA>,<.CHAN>,<.BUFF>,<.WCNT>,<.BLK>,<.CRTN>,9.
+.ENDC
+.ENDM
+        .MACRO  .CMGLBL
+        .GLOBL  CMFRBF,CMTPBF,CMMFCB,CMLDIR,CMCNSM
+        .GLOBL  CMSMET,CMKEYM,CMENDG,CMKEYP,CMTCHR
+        .GLOBL  CMKEYC,CMKEYS,CMPGEX,CMPBSY,CMPGCM
+        .GLOBL  CMINVT,CMOVLG,CMERCN,CMEOFM,CMENDJ
+        .GLOBL  CMROWN,CMCOLN,CMMDLS,CMMDAD,CMMFLG
+        .GLOBL  CMMOVP,CMOVPG,CMOVRL,CMMDST,CMRBSY
+        .GLOBL  CMDIRE,CMLIST,CMKSMC,CMJBST,CMTXT
+        .GLOBL  CMTXX,CMKEYI,CMCBSY,CMTBSY,CMDBSY
+        .ENDM
+
+
+
+.

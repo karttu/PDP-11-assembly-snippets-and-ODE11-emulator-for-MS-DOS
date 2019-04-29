@@ -1,0 +1,53 @@
+
+
+Muutamia heuristisesti arvattuja muistipaikkoja PDT-11/150 RT-11:ssa:
+
+40-54 System Software Communication Words.
+
+40 PC ladataan ilmeisimmin t{st{.
+42 SP ladataan t{st{.
+44 JSW RT11's job status word. T{m{ on omissa k{{nnetyiss{ ohjelmissa yleens{
+    0, komennoissa voi olla 20000, 21000 tai vaikka 1000.
+
+46 ???
+
+50 Viimeinen loudattava paikka, eli siis softan pituus byteiss{.
+   D komento p{ivitt{{ t{m{n paikan arvoa aina suurimmaksi osoitteeksi
+    mihin on viimeksi depositattu jotakin.
+   Eli jos suoritetaan D addr=jotakin niin jos addr > 50:n sis{lt|,
+    niin addr -> 50.
+
+52 ???
+
+54 142740 T{m{ sis{lt{{ aina t{m{n arvon, jonka show config muuten antaa
+    Resident Monitor Base:ksi.
+
+360 T{ss{ ja seuraavassa paikassa voi olla jotain h{m{r{{,
+     duunikoneelta kopsatuissa itse k{{nnetyiss{ oli t{ss{ kohdassa 300,
+     Pedon softissa taas 374, 340, 370 tai sitten enemm{n kuin yksi wordi.
+
+
+I/O registers:
+
+Console:
+
+177560 Keyboard status register
+177562 Keyboard data register
+177564 Printer status register
+177566 Printer data register
+
+Terminal 1:
+
+176500 Receiver status register.
+176502 Receiver data register.
+176504 Transmitter status register.
+176506 Transmitter data register.
+
+Terminal 2 on vissiin sitten:
+
+176510
+176512
+176514
+176516
+
+

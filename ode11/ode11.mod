@@ -1,0 +1,11 @@
+od.lo
+e11.o
+allocmem.lo
+getnchar.lo
+itoasc.lo
+myfuns.lo
+parsechr.lo
+streq.lo
+strdup.lo
+strfuns2.lo
+wildcard.lo

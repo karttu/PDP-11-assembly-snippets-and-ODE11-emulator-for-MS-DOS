@@ -1,0 +1,457 @@
+	.title	MINIRT Minimal version of RT-11 for ODE11 PDP-11 emulator.
+	.ident	/6.66/
+;
+;	Coded by A. Karttunen 12-Oct-92.
+;
+;       Currently can handle only macro calls .EXIT (EMT 350),
+;       .PRINT (EMT 351), .TTINR & .TTYIN (EMT 340) and
+;       .TTOUTR & .TTYOUT (EMT 341).
+;       Note that currently .TTINR reads characters in raw mode,
+;       although in real RT-11 it is buffered, and also handles
+;       DEL's and CTRL-U's. Should implement that later.
+;
+        .enabl  gbl, lc         ; Enable global symbols & lowercase text
+	.psect
+;
+KBSTAT=177560
+KBDATA=177562
+PRSTAT=177564
+PRDATA=177566
+;
+TRAP$PSW=000340                 ; Priority 7 and all the flags TNZVC cleared.
+;
+LC=.
+.=4+LC
+        .WORD   TRAP4,TRAP$PSW
+	.WORD   TRAP10,TRAP$PSW
+	.WORD   TRAP14,TRAP$PSW
+	.WORD   TRAP20,TRAP$PSW
+.=30+LC
+	.WORD   TRAPEMT,TRAP$PSW
+        .WORD   TRAPTRAP,TRAP$PSW
+.=1000+LC
+;
+; Note that this whole code is PIC (Position Independent Code) and
+; should remain so, so that it can be easily loaded to any part
+; of memory.
+;
+;
+TRP4MSG:  .ASCII /?MON-F-Trap to 4 (illegal address) /<200>
+TRP10MSG: .ASCII /?MON-F-Trap to 10 (illegal instruction) /<200>
+TRP14MSG: .ASCII /?MON-F-Trap to 14 (BPT) /<200>
+TRP20MSG: .ASCII /?MON-F-Trap to 20 (IOT) /<200>
+UNIMPMSG: .ASCII /?MON-F-Unimplemented: EMT /<200>
+TRAPMSG:  .ASCII /?MON-F-Unimplemented: TRAP /<200>
+EXITMSG:  .ASCII /?MON-F-Exited with EMT /<200>
+CRLFMSG:  .ASCII <15><12><200>
+;
+        .EVEN
+TRAP4::
+        MOV     R0,-(SP)
+	MOV     PC,R0
+	ADD     #TRP4MSG-.,R0
+	BR      CONT1
+;
+TRAP10::
+        MOV     R0,-(SP)
+	MOV     PC,R0
+	ADD     #TRP10MSG-.,R0
+	BR      CONT1
+TRAP14::
+        MOV     R0,-(SP)
+	MOV     PC,R0
+	ADD     #TRP14MSG-.,R0
+	BR      CONT1
+TRAP20::
+        MOV     R0,-(SP)        ; Save the original R0.
+	MOV     PC,R0
+	ADD     #TRP20MSG-.,R0
+CONT1:
+        JSR     PC,MYPRINT
+	MOV     R1,-(SP)        ; Save R1.
+PRINTPC:
+	MOV     4(SP),R0        ; Get saved PC from stack.
+	MOV     #-17,R1         ; Print PC with six octal digits
+	JSR     PC,PRTOCT       ; In PRTOCT routine.
+	JSR     PC,PRCRLF       ; And print CR+LF in the end.
+	MOV     (SP)+,R1        ; Restore R1.
+	MOV     (SP)+,R0        ; Restore R0.
+	HALT
+;
+TRAPTRAP::
+        MOV     R0,-(SP)        ; Save the original R0.
+	MOV     PC,R0
+	ADD     #TRAPMSG-.,R0   ; When we print this
+        BR      PRINT$N         ; Jump to print it.
+;
+UNIMPL:
+	MOV     PC,R0
+	ADD     #UNIMPMSG-.,R0  ; When we print this
+PRINT$N:
+	JSR     PC,MYPRINT      ;  first.
+	MOV     2(SP),R0        ; Fetch address X+2 from stack
+	MOV     -(R0),R0        ; Fetch EMT/TRAP instruction from X.
+	BIC     #^C377,R0       ; Get N
+	MOV     R1,-(SP)        ; Save R1.
+	MOV     #-6,R1          ; Print EMT's argument with three digits.
+	JSR     PC,PRTOCT
+	MOV     #040,R0         ; Put one blank between.
+	JSR     PC,MYTTOUT
+	BR      PRINTPC         ; And branch to common routine to print
+;                                  the rest (i.e. PC+2 of triggering instr.)
+;
+$EXIT:
+	MOV     PC,R0
+	ADD     #EXITMSG-.,R0   ; When we print this
+        BR      PRINT$N         ; Branch to print the 350 argument of this EMT.
+;
+$PRINT:
+        MOV     (SP)+,R0        ; Get original R0 back.
+	JSR     PC,MYPRINT
+	RTI
+;
+$TTINR:
+        MOV     (SP)+,R0        ; Pop saved R0 off the stack.
+;       CMPB    @#KBSTAT,#200   ; Test keyboard status register.
+;	BLO     5$              ; If no character ready (BLO = BCS)
+        TSTB    @#KBSTAT        ; Test keyboard status register.
+ 	BPL     5$              ; If no character ready.
+	MOV     @#KBDATA,R0
+; Next lines ommented out, instead we jump to TTOUTR to echo the character.
+;	BIC     #1,2(SP)        ; Clear C bit of the saved flags (PSR).
+;	RTI
+	BR      CONT2
+5$:     BIS     #1,2(SP)        ; Set C bit of the saved flags (PSR).
+        RTI                     ; Return from Interrupt.
+;
+$TTOUTR:
+        MOV     (SP)+,R0        ; Get original R0 back.
+CONT2:
+        TSTB    @#PRSTAT        ; Test printer status register.
+ 	BPL     5$              ; If not ready now.
+	MOV     R0,@#PRDATA     ; If it is ready, then print what was in R0.
+	BIC     #1,2(SP)        ; Clear C bit of the saved flags (PSR).
+	RTI
+5$:     BIS     #1,2(SP)        ; Set C bit of the saved flags (PSR).
+        RTI                     ; Return from interrupt.
+;
+MYTTOUT:
+        TSTB    @#PRSTAT        ; Is printer free?
+	BPL     MYTTOUT         ; If not, wait
+	MOV     R0,@#PRDATA     ; Else print contents of R0.
+	RTS     PC
+;
+PRCRLF:
+	MOV     PC,R0
+	ADD     #CRLFMSG-.,R0   ; And print CR+LF...
+MYPRINT:
+        TSTB    (R0)            ; String ending to zero?
+	BEQ     PRCRLF          ; In that case print CR+LF after it.
+	CMPB    (R0),#200       ; String ending to #200 ?
+	BEQ     PRQUIT          ; Then exit without printing CR+LF
+WAIT1:  TSTB    @#PRSTAT        ; Printer ready?
+	BPL     WAIT1           ; Nope, wait until it is.
+	MOVB    (R0)+,@#PRDATA  ; When ready, output the char. pointed by R0
+	BR      MYPRINT         ; Loop back.
+PRQUIT: RTS     PC
+;
+; Prints out the octal number in R0.
+; R1 specifies how many digits are printed.
+; Use -17 (-15. decimal) for all six digits, and -6 for three digits.
+;
+PRTOCT:
+	MOV     R1,-(SP)        ; Save R1, R2, R3.
+        MOV     R2,-(SP)
+	MOV     R3,-(SP)
+;
+	MOV     R0,-(SP)        ; Save argument to stack.
+	CLR     R2              ; Clear high word of R2:R3 pair. (For ASHC)
+10$:
+        MOV     (SP),R3         ; Get intact copy of number (to low word).
+	ASHC    R1,R2           ; Shift R2:R3 pair R1 bits right.
+        MOV     R3,R0           ; Get copy of low word to R0.
+	BIC     #^C7,R0         ; Get the lowest octal digit.
+	ADD     #'0,R0          ; Add 060 to get the ascii digit.
+        JSR     PC,MYTTOUT      ; Output it.
+	ADD     #3,R1           ; Next time shift three bits less.
+	BLE     10$             ; Loop until R1 comes greater than zero.
+; (I hope this is same as BMI 10$ followed by BEQ 10$)
+;
+        MOV     (SP)+,R0
+	MOV     (SP)+,R3        ; Restore R4, R3 & R2.
+	MOV     (SP)+,R2
+	MOV     (SP)+,R1
+	RTS     PC
+;
+TRAPEMT::
+        MOV     R0,-(SP)        ; Save the original R0.
+	MOV     2(SP),R0        ; Fetch address X+2 from stack
+	MOV     -(R0),R0        ; Fetch EMT instruction from X.
+	BIC     #^C377,R0       ; Get N
+	ASL     R0              ; Multiply by 2.
+	ADD     PC,R0           ; Add PC.
+	ADD     #JMPBASE-.,R0   ; Add also JMPBASE-. (probably 6) to R0.
+	ADD     (R0),PC         ; Which is used as pointer to EMTTAB
+JMPBASE: ; to get the relative distance to routine, which is added to PC.
+EMTTAB: ; (Huh, Position Independent Code is funny?)
+; Use relative distances to routines instead of absolute addresses, so that
+; this code will be PIC:
+	.WORD UNIMPL-JMPBASE	; 000
+	.WORD UNIMPL-JMPBASE	; 001
+	.WORD UNIMPL-JMPBASE	; 002
+	.WORD UNIMPL-JMPBASE	; 003
+	.WORD UNIMPL-JMPBASE	; 004
+	.WORD UNIMPL-JMPBASE	; 005
+	.WORD UNIMPL-JMPBASE	; 006
+	.WORD UNIMPL-JMPBASE	; 007
+	.WORD UNIMPL-JMPBASE	; 010
+	.WORD UNIMPL-JMPBASE	; 011
+	.WORD UNIMPL-JMPBASE	; 012
+	.WORD UNIMPL-JMPBASE	; 013
+	.WORD UNIMPL-JMPBASE	; 014
+	.WORD UNIMPL-JMPBASE	; 015
+	.WORD UNIMPL-JMPBASE	; 016
+	.WORD UNIMPL-JMPBASE	; 017
+	.WORD UNIMPL-JMPBASE	; 020
+	.WORD UNIMPL-JMPBASE	; 021
+	.WORD UNIMPL-JMPBASE	; 022
+	.WORD UNIMPL-JMPBASE	; 023
+	.WORD UNIMPL-JMPBASE	; 024
+	.WORD UNIMPL-JMPBASE	; 025
+	.WORD UNIMPL-JMPBASE	; 026
+	.WORD UNIMPL-JMPBASE	; 027
+	.WORD UNIMPL-JMPBASE	; 030
+	.WORD UNIMPL-JMPBASE	; 031
+	.WORD UNIMPL-JMPBASE	; 032
+	.WORD UNIMPL-JMPBASE	; 033
+	.WORD UNIMPL-JMPBASE	; 034
+	.WORD UNIMPL-JMPBASE	; 035
+	.WORD UNIMPL-JMPBASE	; 036
+	.WORD UNIMPL-JMPBASE	; 037
+	.WORD UNIMPL-JMPBASE	; 040
+	.WORD UNIMPL-JMPBASE	; 041
+	.WORD UNIMPL-JMPBASE	; 042
+	.WORD UNIMPL-JMPBASE	; 043
+	.WORD UNIMPL-JMPBASE	; 044
+	.WORD UNIMPL-JMPBASE	; 045
+	.WORD UNIMPL-JMPBASE	; 046
+	.WORD UNIMPL-JMPBASE	; 047
+	.WORD UNIMPL-JMPBASE	; 050
+	.WORD UNIMPL-JMPBASE	; 051
+	.WORD UNIMPL-JMPBASE	; 052
+	.WORD UNIMPL-JMPBASE	; 053
+	.WORD UNIMPL-JMPBASE	; 054
+	.WORD UNIMPL-JMPBASE	; 055
+	.WORD UNIMPL-JMPBASE	; 056
+	.WORD UNIMPL-JMPBASE	; 057
+	.WORD UNIMPL-JMPBASE	; 060
+	.WORD UNIMPL-JMPBASE	; 061
+	.WORD UNIMPL-JMPBASE	; 062
+	.WORD UNIMPL-JMPBASE	; 063
+	.WORD UNIMPL-JMPBASE	; 064
+	.WORD UNIMPL-JMPBASE	; 065
+	.WORD UNIMPL-JMPBASE	; 066
+	.WORD UNIMPL-JMPBASE	; 067
+	.WORD UNIMPL-JMPBASE	; 070
+	.WORD UNIMPL-JMPBASE	; 071
+	.WORD UNIMPL-JMPBASE	; 072
+	.WORD UNIMPL-JMPBASE	; 073
+	.WORD UNIMPL-JMPBASE	; 074
+	.WORD UNIMPL-JMPBASE	; 075
+	.WORD UNIMPL-JMPBASE	; 076
+	.WORD UNIMPL-JMPBASE	; 077
+	.WORD UNIMPL-JMPBASE	; 0100
+	.WORD UNIMPL-JMPBASE	; 0101
+	.WORD UNIMPL-JMPBASE	; 0102
+	.WORD UNIMPL-JMPBASE	; 0103
+	.WORD UNIMPL-JMPBASE	; 0104
+	.WORD UNIMPL-JMPBASE	; 0105
+	.WORD UNIMPL-JMPBASE	; 0106
+	.WORD UNIMPL-JMPBASE	; 0107
+	.WORD UNIMPL-JMPBASE	; 0110
+	.WORD UNIMPL-JMPBASE	; 0111
+	.WORD UNIMPL-JMPBASE	; 0112
+	.WORD UNIMPL-JMPBASE	; 0113
+	.WORD UNIMPL-JMPBASE	; 0114
+	.WORD UNIMPL-JMPBASE	; 0115
+	.WORD UNIMPL-JMPBASE	; 0116
+	.WORD UNIMPL-JMPBASE	; 0117
+	.WORD UNIMPL-JMPBASE	; 0120
+	.WORD UNIMPL-JMPBASE	; 0121
+	.WORD UNIMPL-JMPBASE	; 0122
+	.WORD UNIMPL-JMPBASE	; 0123
+	.WORD UNIMPL-JMPBASE	; 0124
+	.WORD UNIMPL-JMPBASE	; 0125
+	.WORD UNIMPL-JMPBASE	; 0126
+	.WORD UNIMPL-JMPBASE	; 0127
+	.WORD UNIMPL-JMPBASE	; 0130
+	.WORD UNIMPL-JMPBASE	; 0131
+	.WORD UNIMPL-JMPBASE	; 0132
+	.WORD UNIMPL-JMPBASE	; 0133
+	.WORD UNIMPL-JMPBASE	; 0134
+	.WORD UNIMPL-JMPBASE	; 0135
+	.WORD UNIMPL-JMPBASE	; 0136
+	.WORD UNIMPL-JMPBASE	; 0137
+	.WORD UNIMPL-JMPBASE	; 0140
+	.WORD UNIMPL-JMPBASE	; 0141
+	.WORD UNIMPL-JMPBASE	; 0142
+	.WORD UNIMPL-JMPBASE	; 0143
+	.WORD UNIMPL-JMPBASE	; 0144
+	.WORD UNIMPL-JMPBASE	; 0145
+	.WORD UNIMPL-JMPBASE	; 0146
+	.WORD UNIMPL-JMPBASE	; 0147
+	.WORD UNIMPL-JMPBASE	; 0150
+	.WORD UNIMPL-JMPBASE	; 0151
+	.WORD UNIMPL-JMPBASE	; 0152
+	.WORD UNIMPL-JMPBASE	; 0153
+	.WORD UNIMPL-JMPBASE	; 0154
+	.WORD UNIMPL-JMPBASE	; 0155
+	.WORD UNIMPL-JMPBASE	; 0156
+	.WORD UNIMPL-JMPBASE	; 0157
+	.WORD UNIMPL-JMPBASE	; 0160
+	.WORD UNIMPL-JMPBASE	; 0161
+	.WORD UNIMPL-JMPBASE	; 0162
+	.WORD UNIMPL-JMPBASE	; 0163
+	.WORD UNIMPL-JMPBASE	; 0164
+	.WORD UNIMPL-JMPBASE	; 0165
+	.WORD UNIMPL-JMPBASE	; 0166
+	.WORD UNIMPL-JMPBASE	; 0167
+	.WORD UNIMPL-JMPBASE	; 0170
+	.WORD UNIMPL-JMPBASE	; 0171
+	.WORD UNIMPL-JMPBASE	; 0172
+	.WORD UNIMPL-JMPBASE	; 0173
+	.WORD UNIMPL-JMPBASE	; 0174
+	.WORD UNIMPL-JMPBASE	; 0175
+	.WORD UNIMPL-JMPBASE	; 0176
+	.WORD UNIMPL-JMPBASE	; 0177
+	.WORD UNIMPL-JMPBASE	; 0200
+	.WORD UNIMPL-JMPBASE	; 0201
+	.WORD UNIMPL-JMPBASE	; 0202
+	.WORD UNIMPL-JMPBASE	; 0203
+	.WORD UNIMPL-JMPBASE	; 0204
+	.WORD UNIMPL-JMPBASE	; 0205
+	.WORD UNIMPL-JMPBASE	; 0206
+	.WORD UNIMPL-JMPBASE	; 0207
+	.WORD UNIMPL-JMPBASE	; 0210
+	.WORD UNIMPL-JMPBASE	; 0211
+	.WORD UNIMPL-JMPBASE	; 0212
+	.WORD UNIMPL-JMPBASE	; 0213
+	.WORD UNIMPL-JMPBASE	; 0214
+	.WORD UNIMPL-JMPBASE	; 0215
+	.WORD UNIMPL-JMPBASE	; 0216
+	.WORD UNIMPL-JMPBASE	; 0217
+	.WORD UNIMPL-JMPBASE	; 0220
+	.WORD UNIMPL-JMPBASE	; 0221
+	.WORD UNIMPL-JMPBASE	; 0222
+	.WORD UNIMPL-JMPBASE	; 0223
+	.WORD UNIMPL-JMPBASE	; 0224
+	.WORD UNIMPL-JMPBASE	; 0225
+	.WORD UNIMPL-JMPBASE	; 0226
+	.WORD UNIMPL-JMPBASE	; 0227
+	.WORD UNIMPL-JMPBASE	; 0230
+	.WORD UNIMPL-JMPBASE	; 0231
+	.WORD UNIMPL-JMPBASE	; 0232
+	.WORD UNIMPL-JMPBASE	; 0233
+	.WORD UNIMPL-JMPBASE	; 0234
+	.WORD UNIMPL-JMPBASE	; 0235
+	.WORD UNIMPL-JMPBASE	; 0236
+	.WORD UNIMPL-JMPBASE	; 0237
+	.WORD UNIMPL-JMPBASE	; 0240
+	.WORD UNIMPL-JMPBASE	; 0241
+	.WORD UNIMPL-JMPBASE	; 0242
+	.WORD UNIMPL-JMPBASE	; 0243
+	.WORD UNIMPL-JMPBASE	; 0244
+	.WORD UNIMPL-JMPBASE	; 0245
+	.WORD UNIMPL-JMPBASE	; 0246
+	.WORD UNIMPL-JMPBASE	; 0247
+	.WORD UNIMPL-JMPBASE	; 0250
+	.WORD UNIMPL-JMPBASE	; 0251
+	.WORD UNIMPL-JMPBASE	; 0252
+	.WORD UNIMPL-JMPBASE	; 0253
+	.WORD UNIMPL-JMPBASE	; 0254
+	.WORD UNIMPL-JMPBASE	; 0255
+	.WORD UNIMPL-JMPBASE	; 0256
+	.WORD UNIMPL-JMPBASE	; 0257
+	.WORD UNIMPL-JMPBASE	; 0260
+	.WORD UNIMPL-JMPBASE	; 0261
+	.WORD UNIMPL-JMPBASE	; 0262
+	.WORD UNIMPL-JMPBASE	; 0263
+	.WORD UNIMPL-JMPBASE	; 0264
+	.WORD UNIMPL-JMPBASE	; 0265
+	.WORD UNIMPL-JMPBASE	; 0266
+	.WORD UNIMPL-JMPBASE	; 0267
+	.WORD UNIMPL-JMPBASE	; 0270
+	.WORD UNIMPL-JMPBASE	; 0271
+	.WORD UNIMPL-JMPBASE	; 0272
+	.WORD UNIMPL-JMPBASE	; 0273
+	.WORD UNIMPL-JMPBASE	; 0274
+	.WORD UNIMPL-JMPBASE	; 0275
+	.WORD UNIMPL-JMPBASE	; 0276
+	.WORD UNIMPL-JMPBASE	; 0277
+	.WORD UNIMPL-JMPBASE	; 0300
+	.WORD UNIMPL-JMPBASE	; 0301
+	.WORD UNIMPL-JMPBASE	; 0302
+	.WORD UNIMPL-JMPBASE	; 0303
+	.WORD UNIMPL-JMPBASE	; 0304
+	.WORD UNIMPL-JMPBASE	; 0305
+	.WORD UNIMPL-JMPBASE	; 0306
+	.WORD UNIMPL-JMPBASE	; 0307
+	.WORD UNIMPL-JMPBASE	; 0310
+	.WORD UNIMPL-JMPBASE	; 0311
+	.WORD UNIMPL-JMPBASE	; 0312
+	.WORD UNIMPL-JMPBASE	; 0313
+	.WORD UNIMPL-JMPBASE	; 0314
+	.WORD UNIMPL-JMPBASE	; 0315
+	.WORD UNIMPL-JMPBASE	; 0316
+	.WORD UNIMPL-JMPBASE	; 0317
+	.WORD UNIMPL-JMPBASE	; 0320
+	.WORD UNIMPL-JMPBASE	; 0321
+	.WORD UNIMPL-JMPBASE	; 0322
+	.WORD UNIMPL-JMPBASE	; 0323
+	.WORD UNIMPL-JMPBASE	; 0324
+	.WORD UNIMPL-JMPBASE	; 0325
+	.WORD UNIMPL-JMPBASE	; 0326
+	.WORD UNIMPL-JMPBASE	; 0327
+	.WORD UNIMPL-JMPBASE	; 0330
+	.WORD UNIMPL-JMPBASE	; 0331
+	.WORD UNIMPL-JMPBASE	; 0332
+	.WORD UNIMPL-JMPBASE	; 0333
+	.WORD UNIMPL-JMPBASE	; 0334
+	.WORD UNIMPL-JMPBASE	; 0335
+	.WORD UNIMPL-JMPBASE	; 0336
+	.WORD UNIMPL-JMPBASE	; 0337
+	.WORD $TTINR-JMPBASE	; 0340
+	.WORD $TTOUTR-JMPBASE   ; 0341
+	.WORD UNIMPL-JMPBASE	; 0342
+	.WORD UNIMPL-JMPBASE	; 0343
+	.WORD UNIMPL-JMPBASE	; 0344
+	.WORD UNIMPL-JMPBASE	; 0345
+	.WORD UNIMPL-JMPBASE	; 0346
+	.WORD UNIMPL-JMPBASE	; 0347
+	.WORD $EXIT-JMPBASE 	; 0350
+	.WORD $PRINT-JMPBASE	; 0351
+	.WORD UNIMPL-JMPBASE	; 0352
+	.WORD UNIMPL-JMPBASE	; 0353
+	.WORD UNIMPL-JMPBASE	; 0354
+	.WORD UNIMPL-JMPBASE	; 0355
+	.WORD UNIMPL-JMPBASE	; 0356
+	.WORD UNIMPL-JMPBASE	; 0357
+	.WORD UNIMPL-JMPBASE	; 0360
+	.WORD UNIMPL-JMPBASE	; 0361
+	.WORD UNIMPL-JMPBASE	; 0362
+	.WORD UNIMPL-JMPBASE	; 0363
+	.WORD UNIMPL-JMPBASE	; 0364
+	.WORD UNIMPL-JMPBASE	; 0365
+	.WORD UNIMPL-JMPBASE	; 0366
+	.WORD UNIMPL-JMPBASE	; 0367
+	.WORD UNIMPL-JMPBASE	; 0370
+	.WORD UNIMPL-JMPBASE	; 0371
+	.WORD UNIMPL-JMPBASE	; 0372
+	.WORD UNIMPL-JMPBASE	; 0373
+	.WORD UNIMPL-JMPBASE	; 0374
+	.WORD UNIMPL-JMPBASE	; 0375
+	.WORD UNIMPL-JMPBASE	; 0376
+	.WORD UNIMPL-JMPBASE	; 0377
+;
+;
+	.END

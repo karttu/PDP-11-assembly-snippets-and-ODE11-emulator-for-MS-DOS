@@ -1,0 +1,96 @@
+
+Joitakin mahdollisia instructioneita mill{ voisi laajentaa PDP-11:n setti{:
+(meditoinut AK)
+
+
+MOVL    src,dst         Move Longword
+
+ T{m{ olisi niinkuin MOV mutta siirt{isi 32-bittisen longwordin yhden wordin
+  sijasta. Muuten se k{sitett{isiin kuitenkin word-instructioniksi, eli
+  auto(de/in)crementeiss{ muutettaisiin indeksirekun arvoa vain kahdella.
+  (tai ehk{ sittenkin nelj{ll{ ???)
+ Molemmat operandit sallisivat kaikki mahdolliset modet, eli siis vain code
+  17SSDD k{visi p{ins{. Siirto suoritettaisiin niin ett{ vaikka longwordit
+  sijoittuisivat osittain toistensa p{{lle, niin silti toimisi ihan hyvin.
+ T{m{ instruction mahdollistaisi yhden k{skyn eteenp{in kulkevan "ohjelman"
+  (vrt. MOV -(PC),-(PC) taaksep{in).
+ Esimerkiksi  MOVL -4(PC),(PC)  siirt{isi itsens{ kaksi wordia eteenp{in,
+  mutta  MOVL  -4(PC),-(PC) siirt{isi eteenp{in vain yhdell{ wordilla.
+
+
+MEA     src,reg         Move effective address
+
+ Vaihtoehtoinen nimi: MOVEA. T{m{ olisi luultavasti muotoa 076RSS eli kuuluisi
+  EIS-ryhm{{n (MUL,DIV,ASH,ASHC, etc.) Siirt{isi sourcen effective addressin
+  rekkuun reg. Voisi k{ytt{{ esim. nopeaan yhteenlaskuun: MEA 1234(R0),R1
+  laittaisi R1:een summan R0 + 1234.  MEA address,PC  tekisi itse asiassa
+  saman kuin JMP address. Voisi kirjoittaa my|s MEA .,SP  sen sijaan
+  ett{ kirjoittaisi MOV PC,SP ja TST -(SP)
+  Tietysti mik{li instructionia MOVL ei olisi niin destinationkin voisi
+   olla mik{ tahansa address mode eik{ vain rekisteri.
+  MEA   (R0)+,R1  varmaankin siirt{isi R1:seen R0:n arvon ennen kuin sit{
+   on lis{tty kahdella.
+
+
+
+XCT     src             Execute instruction.
+
+ Vaihtoehtoinen nimi: XEC. T{m{ suorittaisi yhden k{skyn paikasta src.
+ (joka voisi olla mik{ tahansa addr. mode).
+  PC laskettaisiin kuitenkin sen paikan mukaan miss{ XCT on, ainakin
+  JMP, JSR ja branch-k{skyiss{. En ole varma mist{ argumentit otettaisiin
+  jos suoritettavassa instructionissa olisi addressing modeja 27, 37, 67, 77.
+ Miten t{m{ sitten implementoitaisiin on eri asia. T{llainen k{sky l|ytyy
+  ainakin seuraavista prosessoreista/koneista: KL-10 (= PDP-10, DEC-10/20),
+  Univac-1108 (numero oikein ???) ja General Automationin SPC-16/65 etc.
+ Tietysti suoritettava k{skykin saisi olla toinen XCT ja niin edelleen...
+
+
+SWAP    src   tai  SWAP   src,dst     Swap words.
+
+ Ensimm{inen muoto sw{pp{isi wordit src ja src+2 kesken{{n, esim. SWAP  R3
+  sw{pp{isi R3:sen ja R4:sen kesken{{n. Toinen muoto sw{pp{isi kesken{{n
+  src:n ja dst:in, mutta silloin ei saisi olla k{sky{ MOVL jotta koodi
+  17SSDD olisi vapaa t{lle. T{m{ nyt olisi l{hinn{ hy|dyllinen nopeaan Forth-
+  implementaatioon.
+
+
+REV[B]  src
+
+ T{m{ k{{nt{isi bitit joko wordista tai bytest{, mutta olisi l{hinn{ vain
+  kuriositeetti.
+
+
+
+  	Core Wars:iin (= ydinsota ? :-) liittyvi{ k{skyj{:
+
+
+
+SPLIT   src
+
+ T{m{ splittaisi yhden "aliprosessin" lis{{ executoitavaksi. Seuraavalla
+  kerralla executattaisiin k{skyj{ my|s paikasta src eteenp{in.
+  (mik{ tahansa addr. mode). Huomaa ettei opcodea SPL voi k{ytt{{ koska
+  sellainen on jo (= 00023N tekee mit{ ?).
+
+
+PCT     src
+
+ T{m{ protectoisi paikan src yhdeksi kirjoituskerraksi eteenp{in, eli
+  seuraavan kerran kun "vihollisprosessi" (my|s t{m{ itse ?) yritt{isi
+  kirjoittaa paikkaan src, sill{ ei olisi mit{{n vaikutusta (niinkuin se
+  olisi rommia). Seuraavalla kerralla siihen voisi taas kirjoittaa ihan
+  normaalisti. Ehk{ olisi j{rkev{{ est{{ muodon PCT reg (esim. PCT R0
+  tai PCT PC) k{ytt|, koska se tekisi koko pelin mahdottomaksi.
+ T{m{n voisi implementoida 8192 byten kokoisella bittitaulukolla jossa
+  jokainen bitti vastaisi yht{ "PDP-11:n" 64K muistiavaruuden tavua. Jos
+  olisi ykk|nen niin ko. paikka olisi protectoitu.
+  Jos taas muistia halutaan tuhlata niin voisi varata konaiset 64K
+  hommaa varten, ja kummallekin prosessille olisi oma bittins{ kussakin
+  bytess{. Samassa segmentiss{ voisi s{ilytt{{ muutakin informaatiota,
+  esim. sellaista miss{ muodossa debuggeri printtaa jonkun expressionin
+  tai addressin ulos.
+
+  Katso A. K. Dewdney:n artikkeleita Core Warsista Scientific Americanin
+   numeroissa May 1984 ja March 1985 Computer Recreations palstoilta.
+

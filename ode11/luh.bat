@@ -1,0 +1,1 @@
+ln \ak\pdp11\od.lo \ak\pdp11\e11.o \ak\pdp11\getnchar.lo \ak\pdp11\allocmem.lo -lmy1libld -lmy1libld -lmld -lcld -n -t -o \ak\pdp11\ode11.exe %1 %2 %3 %4 %5 %6 %7 %8 %9 

@@ -1,0 +1,47 @@
+Archive:  petomac.zip
+ Length  Method   Size  Ratio   Date    Time   CRC-32     Name
+ ------  ------   ----  -----   ----    ----   ------     ----
+    143  Defl:N     120  16%  03-11-92  13:46  a0f47a8d   HELLO.MAC
+    244  Defl:N     117  52%  03-11-92  13:51  38e60c65   TEST1.MAC
+    329  Defl:N     220  33%  03-11-92  13:51  21e7bee1   HELLO2.MAC
+    111  Defl:N      70  37%  03-11-92  13:52  73a0d1f0   CRAB.MAC
+     65  Defl:N      56  14%  03-11-92  13:52  03e337e8   CONTST.MAC
+     61  Defl:N      59   3%  03-11-92  13:53  23fac4af   CONTS2.MAC
+    476  Defl:N     295  38%  03-11-92  13:53  f373018b   INBUF.MAC
+   1045  Defl:N     528  50%  03-11-92  13:54  75a18e68   INTOUT.MAC
+    660  Defl:N     309  53%  03-11-92  13:54  0b36aa81   TESTI2.MAC
+    127  Defl:N      83  35%  03-11-92  13:55  40d9f957   AVANTI.MAC
+  41307  Defl:N   10725  74%  03-13-92  02:54  f13d5506   OBO.MAC
+   1815  Defl:N     893  51%  02-26-92  19:54  924c7805   TTREAD.MAC
+   5085  Defl:N    1488  71%  02-27-92  18:36  519ee4a6   TTWRITE.MAC
+  10437  Defl:N    3095  70%  03-12-92  22:23  0e94103b   INTBUF.MAC
+   1152  Defl:N     588  49%  03-13-92  01:03  789c8fa8   GETLIN.MAC
+   2006  Defl:N     770  62%  03-12-92  22:22  7f5adb00   OUTPUT.MAC
+  16686  Defl:N    4647  72%  10-13-92  22:56  4caeec76   REGCOP.LST
+   4224  Defl:N     429  90%  10-13-92  22:57  60a3b2a0   REGCOP.OD
+    161  Defl:N     129  20%  03-13-92  18:13  0dbbd9e7   WELCOM.TXT
+    907  Defl:N     376  59%  03-13-92  19:35  5219fa1d   KAAPELIT.TXT
+   1320  Defl:N     681  48%  12-23-90  20:28  aa33e313   PAIKAT.DOC
+   3854  Defl:N     657  83%  10-13-92  02:32  68d0d0b5   MINIRT.OD
+   5632  Defl:N    2355  58%  10-13-92  02:33  ddca3425   OBO.SAV
+    168  Defl:N     161   4%  10-13-92  23:00  e74c1ee8   REGCOP0.SAV
+   9657  Defl:N    2990  69%  01-02-91  13:23  07b9d7b8   RECHEX.MAC
+   4292  Defl:N    1620  62%  10-04-92  17:32  d7a76e2e   K11HEX.MAC
+   3832  Defl:N    1318  66%  10-04-92  02:55  cda1bd45   SELFMOD2.A11
+  14803  Defl:N    5481  63%  10-06-92  23:40  422ba974   REGPER.MAC
+   1320  Defl:N     681  48%  12-23-90  20:28  aa33e313   PAIKAT.DOK
+  18201  Defl:N    2354  87%  10-06-92  23:55  9325b802   REG1.LOG
+  18161  Defl:N    2320  87%  10-06-92  23:57  23fba764   REG6.LOG
+  14784  Defl:N    1780  88%  10-07-92  00:04  903cf212   REGPER.DEP
+   6687  Defl:N    2773  59%  10-06-92  18:56  3219c6cf   OD.MAC
+  10071  Defl:N    3827  62%  10-05-92  03:25  06ba4ee5   REGPER.OLD
+  18161  Defl:N    2322  87%  10-07-92  00:01  46c7d686   REG2.LOG
+   7790  Defl:N    3138  60%  10-13-92  22:50  e9843e69   REGCOP.MAC
+   4825  Defl:N    2107  56%  10-05-92  01:10  eb2c0acb   ODOLD.MAC
+  11908  Defl:N    2204  82%  10-05-92  02:05  422fc91c   REGPEOLD.OD
+  14399  Defl:N    3121  78%  10-13-92  19:18  b81d3efe   MINIRT.MAC
+   2063  Defl:N     644  69%  10-13-92  23:00  479433d5   REGCOP0.ODE
+   1250  Defl:N     551  56%  10-14-92  01:37  78c04598   PERMUT.TXT
+    724  Defl:N     330  54%  10-13-92  23:46  79ad90cc   REGCOPR.OD
+ ------          ------  ---                              -------
+ 260943           68412  74%                              42     
